@@ -168,7 +168,7 @@ public class MachineBlock extends BaseEntityBlock {
             if (level.isClientSide) return ItemInteractionResult.SUCCESS;
             if (purifier.clean() < 250) return ItemInteractionResult.FAIL;
             purifier.takeClean(250);
-            player.setItemInHand(hand, ItemUtils.createFilledResult(stack, player, new ItemStack(ModItems.CLEAN_WATER_BOTTLE.get())));
+            player.setItemInHand(hand, ItemUtils.createFilledResult(stack, player, new ItemStack(com.shardsofvoid.bunker.registry.ModMachines.CLEAN_WATER_BOTTLE.get())));
             level.playSound(null, pos, SoundEvents.BOTTLE_FILL, SoundSource.BLOCKS, 1.0F, 1.0F);
             return ItemInteractionResult.SUCCESS;
         }
