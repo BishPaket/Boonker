@@ -1,0 +1,13 @@
+{
+  "variants": {
+    "level=1": {
+      "model": "bunker:block/bunker_core_l1"
+    },
+    "level=2": {
+      "model": "bunker:block/bunker_core_l2"
+    },
+    "level=3": {
+      "model": "bunker:block/bunker_core_l3"
+    }
+  }
+}

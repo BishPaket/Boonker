@@ -1,0 +1,59 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="Shards of Void"
+description='''
+Радиация по всему Обычному миру, радиационный костюм и система герметичных бункеров.
+Поверх Wastelands: доза, стадии и лечение (Rad-Away) работают через одну систему.
+'''
+
+[[mixins]]
+config="${mod_id}.mixins.json"
+
+[[dependencies.${mod_id}]]
+    modId="neoforge"
+    type="required"
+    versionRange="${neo_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    type="required"
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+# Все интеграции необязательные: без этих модов всё работает, просто без совместимости.
+[[dependencies.${mod_id}]]
+    modId="wastelands"
+    type="optional"
+    versionRange="*"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="weather2"
+    type="optional"
+    versionRange="*"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="betterweather"
+    type="optional"
+    versionRange="*"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="firstaid"
+    type="optional"
+    versionRange="*"
+    ordering="NONE"
+    side="BOTH"

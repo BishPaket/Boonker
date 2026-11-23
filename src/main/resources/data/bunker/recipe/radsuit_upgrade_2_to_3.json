@@ -1,0 +1,23 @@
+{
+  "type": "bunker:radsuit_upgrade",
+  "template": {
+    "item": "bunker:radsuit_upgrade_template"
+  },
+  "base": {
+    "tag": "bunker:radsuit"
+  },
+  "addition": {
+    "item": "minecraft:netherite_ingot"
+  },
+  "addition_count": 1,
+  "extra_cost": [
+    {
+      "ingredient": {
+        "item": "minecraft:diamond"
+      },
+      "count": 2
+    }
+  ],
+  "from_level": 2,
+  "to_level": 3
+}

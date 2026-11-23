@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "IGI",
+    "IDI",
+    "III"
+  ],
+  "key": {
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "G": {
+      "item": "minecraft:glass_pane"
+    },
+    "D": {
+      "item": "minecraft:diamond"
+    }
+  },
+  "result": {
+    "id": "bunker:radsuit_upgrade_template",
+    "count": 2
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "MDM",
+    "MMM",
+    "MDM"
+  ],
+  "key": {
+    "M": {
+      "item": "bunker:bunker_metal"
+    },
+    "D": {
+      "item": "minecraft:diamond"
+    }
+  },
+  "result": {
+    "id": "bunker:bunker_room_block",
+    "count": 1
+  }
+}

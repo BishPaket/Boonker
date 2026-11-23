@@ -1,0 +1,16 @@
+{
+  "geiger_click": {
+    "subtitle": "subtitles.bunker.geiger_click",
+    "sounds": [
+      "bunker:geiger_click1",
+      "bunker:geiger_click2",
+      "bunker:geiger_click3"
+    ]
+  },
+  "bunker_breach": {
+    "subtitle": "subtitles.bunker.bunker_breach",
+    "sounds": [
+      "bunker:bunker_breach"
+    ]
+  }
+}

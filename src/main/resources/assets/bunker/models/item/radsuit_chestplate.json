@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "bunker:item/radsuit_chestplate",
+    "layer1": "bunker:item/radsuit_badge"
+  }
+}

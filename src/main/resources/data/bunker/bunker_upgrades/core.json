@@ -1,0 +1,47 @@
+{
+  "levels": [
+    {
+      "level": 1,
+      "cost": [],
+      "effects": {
+        "max_rooms": 3
+      }
+    },
+    {
+      "level": 2,
+      "cost": [
+        {
+          "item": "bunker:bunker_metal",
+          "count": 16
+        },
+        {
+          "item": "minecraft:diamond",
+          "count": 4
+        }
+      ],
+      "effects": {
+        "max_rooms": 6
+      }
+    },
+    {
+      "level": 3,
+      "cost": [
+        {
+          "item": "bunker:bunker_metal",
+          "count": 32
+        },
+        {
+          "item": "minecraft:diamond",
+          "count": 8
+        },
+        {
+          "item": "minecraft:netherite_ingot",
+          "count": 2
+        }
+      ],
+      "effects": {
+        "max_rooms": 10
+      }
+    }
+  ]
+}

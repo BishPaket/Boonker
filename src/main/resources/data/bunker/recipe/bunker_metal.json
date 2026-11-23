@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "IOI",
+    "ODO",
+    "IOI"
+  ],
+  "key": {
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "O": {
+      "item": "minecraft:obsidian"
+    },
+    "D": {
+      "item": "minecraft:diamond"
+    }
+  },
+  "result": {
+    "id": "bunker:bunker_metal",
+    "count": 8
+  }
+}

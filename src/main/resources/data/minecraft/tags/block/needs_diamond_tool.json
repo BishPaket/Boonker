@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "bunker:bunker_metal",
+    "bunker:bunker_core",
+    "bunker:bunker_room"
+  ]
+}

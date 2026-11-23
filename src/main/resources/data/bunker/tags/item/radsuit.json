@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "bunker:radsuit_helmet",
+    "bunker:radsuit_chestplate",
+    "bunker:radsuit_leggings",
+    "bunker:radsuit_boots"
+  ]
+}

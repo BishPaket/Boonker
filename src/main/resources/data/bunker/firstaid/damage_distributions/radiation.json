@@ -1,0 +1,11 @@
+{
+  "type": "firstaid:static",
+  "damageTypes": [
+    "bunker:radiation"
+  ],
+  "algorithm": {
+    "type": "firstaid:equal",
+    "reductionMultiplier": 1.0,
+    "tryNoKill": false
+  }
+}
