@@ -192,7 +192,7 @@ public class BunkerScreen extends Screen {
     }
 
     @Override
-    public boolean isPauseGame() {
+    public boolean isPauseScreen() {
         return false;
     }
 }
