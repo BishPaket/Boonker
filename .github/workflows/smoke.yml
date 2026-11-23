@@ -1,0 +1,48 @@
+name: Server smoke test
+
+on: [workflow_dispatch]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Prepare run dir
+        run: |
+          mkdir -p run
+          echo "eula=true" > run/eula.txt
+          printf 'level-type=minecraft\\:flat\nonline-mode=false\nspawn-protection=0\n' > run/server.properties
+      - name: Start dedicated server and wait for "Done"
+        run: |
+          ./gradlew runServer > server.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 180); do
+            if grep -q 'Done (' server.log; then echo "server started"; break; fi
+            if ! kill -0 $PID 2>/dev/null; then echo "server exited"; break; fi
+            sleep 5
+          done
+          sleep 10
+          pkill -f 'net.neoforged' || true
+          kill $PID 2>/dev/null || true
+          sleep 5
+      - name: Report
+        if: always()
+        run: |
+          echo "=== started? ==="; grep -c 'Done (' server.log || true
+          echo "=== errors/warnings mentioning bunker ==="
+          grep -iE 'error|exception|failed|couldn.t|invalid|unknown' server.log | grep -iE 'bunker|mixin|loot|recipe|tag|damage' | head -120 || true
+          echo "=== tail ==="; tail -60 server.log
+          cp run/logs/latest.log latest.log 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-logs
+          path: |
+            server.log
+            latest.log
