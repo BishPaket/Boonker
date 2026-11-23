@@ -1,0 +1,30 @@
+name: API probe
+
+# Служебный: печатает сигнатуры классов Minecraft/NeoForge (javap) из окружения сборки.
+on:
+  workflow_dispatch:
+    inputs:
+      classes:
+        description: 'Классы через пробел'
+        required: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Prepare Minecraft artifacts
+        run: ./gradlew createMinecraftArtifacts
+      - name: javap
+        env:
+          CLASSES: ${{ github.event.inputs.classes }}
+        run: |
+          JAR=$(find build -name '*.jar' -path '*moddev*' | grep -v sources | head -1)
+          echo "JAR=$JAR"; find build -name '*.jar' -path '*moddev*'
+          CP="$JAR:$(find ~/.gradle/caches -name 'neoforge-*-universal.jar' | head -1)"
+          for c in $CLASSES; do javap -cp "$CP" -p "$c" || true; done
