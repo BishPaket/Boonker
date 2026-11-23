@@ -20,6 +20,14 @@ public final class ModMisc {
     public static final DeferredRegister<RecipeSerializer<?>> RECIPE_SERIALIZERS =
             DeferredRegister.create(Registries.RECIPE_SERIALIZER, BunkerMod.MODID);
 
+    public static final DeferredRegister<com.mojang.serialization.MapCodec<? extends net.neoforged.neoforge.common.loot.IGlobalLootModifier>> LOOT_MODIFIERS =
+            DeferredRegister.create(net.neoforged.neoforge.registries.NeoForgeRegistries.Keys.GLOBAL_LOOT_MODIFIER_SERIALIZERS, BunkerMod.MODID);
+
+    /** v3 5.2 / 8.6: частично заряженные ячейки и изношенные фильтры в сундуках структур. */
+    public static final DeferredHolder<com.mojang.serialization.MapCodec<? extends net.neoforged.neoforge.common.loot.IGlobalLootModifier>,
+            com.mojang.serialization.MapCodec<com.shardsofvoid.bunker.loot.AddPartialItemModifier>> ADD_PARTIAL_ITEM =
+            LOOT_MODIFIERS.register("add_partial_item", () -> com.shardsofvoid.bunker.loot.AddPartialItemModifier.CODEC);
+
     public static final DeferredHolder<SoundEvent, SoundEvent> GEIGER_CLICK = SOUNDS.register("geiger_click",
             () -> SoundEvent.createVariableRangeEvent(BunkerMod.id("geiger_click")));
     public static final DeferredHolder<SoundEvent, SoundEvent> BUNKER_BREACH = SOUNDS.register("bunker_breach",
@@ -32,11 +40,24 @@ public final class ModMisc {
     public static final TagKey<Block> SHELL_BLOCKS = TagKey.create(Registries.BLOCK, BunkerMod.id("shell_blocks"));
     /** Блоки, которые не разрушают взрывы и торнадо (металл, ядро, комнаты). */
     public static final TagKey<Block> INDESTRUCTIBLE = TagKey.create(Registries.BLOCK, BunkerMod.id("indestructible"));
+    /** v3 2: гермодверь и гермолюк — шлюзовой режим. */
+    public static final TagKey<Block> AIRLOCKS = TagKey.create(Registries.BLOCK, BunkerMod.id("airlocks"));
+    /** v3 4.3: кабели и генераторы на поверхности (защищаются только при energy.surfaceTornadoImmune). */
+    public static final TagKey<Block> SURFACE_ENERGY = TagKey.create(Registries.BLOCK, BunkerMod.id("surface_energy"));
     /** Части радиационного костюма (база рецептов улучшения). */
     public static final TagKey<Item> RADSUIT = TagKey.create(Registries.ITEM, BunkerMod.id("radsuit"));
 
+    /** v3 8.3: урон спёртым воздухом. */
+    public static final ResourceKey<DamageType> STALE_AIR_DAMAGE = ResourceKey.create(Registries.DAMAGE_TYPE, BunkerMod.id("stale_air"));
     /** Тип урона bunker:radiation (data-driven, обходит броню через тег). */
     public static final ResourceKey<DamageType> RADIATION_DAMAGE = ResourceKey.create(Registries.DAMAGE_TYPE, BunkerMod.id("radiation"));
+
+    /** Блок не разрушают взрывы, торнадо и «фейковые игроки»: тег indestructible, плюс энергоблоки при energy.surfaceTornadoImmune. */
+    public static boolean isProtected(net.minecraft.world.level.block.state.BlockState state) {
+        if (state.is(INDESTRUCTIBLE)) return true;
+        return state.is(SURFACE_ENERGY) && com.shardsofvoid.bunker.config.BunkerConfig.SPEC.isLoaded()
+                && com.shardsofvoid.bunker.config.BunkerConfig.ENERGY_SURFACE_TORNADO_IMMUNE.get();
+    }
 
     private ModMisc() {}
 }

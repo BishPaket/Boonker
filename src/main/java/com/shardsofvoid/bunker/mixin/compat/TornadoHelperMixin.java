@@ -19,6 +19,6 @@ public abstract class TornadoHelperMixin {
     @Inject(method = "canGrab(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;)Z",
             at = @At("HEAD"), cancellable = true, remap = false, require = 0)
     private void bunker$protect(Level level, BlockState state, BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
-        if (state.is(ModMisc.INDESTRUCTIBLE)) cir.setReturnValue(false);
+        if (ModMisc.isProtected(state)) cir.setReturnValue(false);
     }
 }

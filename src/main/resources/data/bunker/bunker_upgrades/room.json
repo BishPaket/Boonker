@@ -3,7 +3,9 @@
     {
       "level": 1,
       "cost": [],
-      "effects": {}
+      "effects": {
+        "expansion": 0
+      }
     },
     {
       "level": 2,
@@ -17,7 +19,9 @@
           "count": 2
         }
       ],
-      "effects": {}
+      "effects": {
+        "expansion": 2
+      }
     },
     {
       "level": 3,
@@ -31,7 +35,9 @@
           "count": 4
         }
       ],
-      "effects": {}
+      "effects": {
+        "expansion": 4
+      }
     }
   ]
 }

@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "MBM",
+    "CFR",
+    "MBM"
+  ],
+  "key": {
+    "M": {
+      "item": "bunker:bunker_metal"
+    },
+    "B": {
+      "item": "minecraft:bucket"
+    },
+    "C": {
+      "item": "minecraft:cauldron"
+    },
+    "F": {
+      "item": "bunker:water_filter_cartridge"
+    },
+    "R": {
+      "item": "minecraft:redstone"
+    }
+  },
+  "result": {
+    "id": "bunker:water_purifier",
+    "count": 1
+  }
+}

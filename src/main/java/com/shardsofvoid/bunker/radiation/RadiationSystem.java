@@ -57,6 +57,13 @@ public final class RadiationSystem {
         int wearTicks;
         int wastelandsMirror = -1;
         boolean forceSync = true;
+        int sentAir = Integer.MIN_VALUE;
+        int sentWater = Integer.MIN_VALUE;
+        int sentArea = Integer.MIN_VALUE;
+        String sentAreaName = "";
+        boolean sentUnpowered;
+        long lastStaleAirDamage;
+        long dehydratedSince = -1;
     }
 
     /** Результат расчёта облучения в текущей точке. */
@@ -141,18 +148,19 @@ public final class RadiationSystem {
         ZoneInfo zone = BunkerManager.zoneAt(level, BlockPos.containing(player.getX(), player.getEyeY(), player.getZ()));
         if (!BunkerConfig.RADIATION_ENABLED.get()
                 || !BunkerConfig.RADIATION_DIMENSIONS.get().contains(level.dimension().location().toString())) {
-            return new Exposure(0, 0, zone != null ? RadiationSource.BUNKER : RadiationSource.NONE, zone);
+            return new Exposure(0, 0, zone != null && zone.protectedHere() ? RadiationSource.BUNKER : RadiationSource.NONE, zone);
         }
         double env = BunkerConfig.RADIATION_BASE_RATE.get()
                 * RadiationMath.depthMultiplier(player.getBlockY())
                 * weatherMultiplier(player);
-        if (zone != null) {
+        if (zone != null && zone.protectedHere()) {
             // bunkerMult = 0: защита бункера и костюма не суммируются
             return new Exposure(0, env, RadiationSource.BUNKER, zone);
         }
+        // v3 3.5: в отключённой или обесточенной комнате игрок набирает дозу как снаружи
         double suit = RadiationMath.suitProtection(player);
         double rate = env * (1.0 - suit);
-        return new Exposure(rate, env, suit > 0 ? RadiationSource.SUIT : RadiationSource.NONE, null);
+        return new Exposure(rate, env, suit > 0 ? RadiationSource.SUIT : RadiationSource.NONE, zone);
     }
 
     private static double weatherMultiplier(ServerPlayer player) {
@@ -182,7 +190,7 @@ public final class RadiationSystem {
         Exposure exposure = computeExposure(player);
         if (!exempt) dose += exposure.rate() * seconds;
 
-        if (exposure.zone() != null) {
+        if (exposure.zone() != null && exposure.zone().protectedHere()) {
             double decay = BunkerConfig.RADIATION_DECAY_IN_BUNKER.get() ? BunkerConfig.RADIATION_BUNKER_DECAY_RATE.get() : 0.0;
             decay = Math.max(decay, exposure.zone().doseDecay());
             dose -= decay * seconds;
@@ -207,7 +215,12 @@ public final class RadiationSystem {
 
         if (!exempt) {
             applyStage(player, st, stage, intervalTicks);
-            if (exposure.zone() == null && exposure.environmentRate() > 0) wearSuit(player, st, intervalTicks);
+            if ((exposure.zone() == null || !exposure.zone().protectedHere()) && exposure.environmentRate() > 0) {
+                wearSuit(player, st, intervalTicks);
+            }
+            applyLifeSupport(player, exposure.zone(), intervalTicks, st);
+        } else {
+            applyLifeSupport(player, null, intervalTicks, st);
         }
 
         sync(player, st, dose, max, stage, exposure);
@@ -232,6 +245,47 @@ public final class RadiationSystem {
             if (damage > 0 && now - st.lastStage4Damage >= BunkerConfig.STAGE4_DAMAGE_INTERVAL.get() * 20L) {
                 st.lastStage4Damage = now;
                 player.hurt(radiationDamage(player.serverLevel()), damage);
+            }
+        }
+    }
+
+    /**
+     * v3 8.3/8.5: эффекты воздуха и воды для игрока в зоне. Выход из зоны — эффекты (короткие, без частиц)
+     * просто истекают, «Обезвоживание» снимается сразу.
+     */
+    private static void applyLifeSupport(ServerPlayer player, ZoneInfo zone, int intervalTicks, PlayerState st) {
+        if (zone == null || !BunkerConfig.LIFE_SUPPORT_ENABLED.get()) {
+            if (player.hasEffect(com.shardsofvoid.bunker.registry.ModEffects.DEHYDRATION)) {
+                player.removeEffect(com.shardsofvoid.bunker.registry.ModEffects.DEHYDRATION);
+            }
+            st.dehydratedSince = -1;
+            return;
+        }
+        int duration = intervalTicks + 20;
+        long now = player.serverLevel().getGameTime();
+        double air = zone.bunker().air;
+        if (air < 50) player.addEffect(new MobEffectInstance(MobEffects.DIG_SLOWDOWN, duration, 0, true, false, true));
+        if (air < 25) {
+            player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, duration, 0, true, false, true));
+            player.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, duration, 0, true, false, true));
+        }
+        if (air <= 0 && now - st.lastStaleAirDamage >= 200) {
+            st.lastStaleAirDamage = now;
+            player.hurt(new DamageSource(player.serverLevel().registryAccess().registryOrThrow(Registries.DAMAGE_TYPE)
+                    .getHolderOrThrow(ModMisc.STALE_AIR_DAMAGE)), 1.0f);
+        }
+
+        if (zone.bunker().waterStock <= 0) {
+            if (st.dehydratedSince < 0) st.dehydratedSince = now;
+            player.addEffect(new MobEffectInstance(com.shardsofvoid.bunker.registry.ModEffects.DEHYDRATION, duration, 0, true, false, true));
+            player.addEffect(new MobEffectInstance(MobEffects.HUNGER, duration, 0, true, false, true));
+            if (now - st.dehydratedSince >= BunkerConfig.WATER_DEHYDRATION_WEAKNESS_MIN.get() * 1200L) {
+                player.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, duration, 0, true, false, true));
+            }
+        } else {
+            st.dehydratedSince = -1;
+            if (player.hasEffect(com.shardsofvoid.bunker.registry.ModEffects.DEHYDRATION)) {
+                player.removeEffect(com.shardsofvoid.bunker.registry.ModEffects.DEHYDRATION);
             }
         }
     }
@@ -270,7 +324,17 @@ public final class RadiationSystem {
         long now = player.serverLevel().getGameTime();
         float rate = (float) exposure.rate();
         int source = exposure.source().ordinal();
+        BunkerManager.ZoneInfo zone = exposure.zone();
+        boolean life = zone != null && BunkerConfig.LIFE_SUPPORT_ENABLED.get();
+        int air = life ? (int) Math.round(zone.bunker().air) : -1;
+        int water = life ? (zone.bunker().waterCapacity <= 0 ? 0
+                : (int) Math.round(100.0 * zone.bunker().waterStock / zone.bunker().waterCapacity)) : -1;
+        int areaIndex = zone == null ? -1 : zone.area() == zone.bunker().coreArea ? 0 : zone.bunker().roomIndex(zone.area().anchor);
+        String areaName = zone == null ? "" : zone.area().name;
+        boolean unpowered = zone != null && !zone.protectedHere();
         boolean changed = st.forceSync
+                || air != st.sentAir || water != st.sentWater || areaIndex != st.sentArea
+                || !areaName.equals(st.sentAreaName) || unpowered != st.sentUnpowered
                 || Math.abs(dose - st.sentDose) >= 0.01
                 || stage != st.sentStage
                 || Math.abs(rate - st.sentRate) >= 0.001f
@@ -284,7 +348,13 @@ public final class RadiationSystem {
         st.sentRate = rate;
         st.sentSource = source;
         st.sentMax = max;
-        PacketDistributor.sendToPlayer(player, new RadiationSyncPayload(dose, max, stage, rate, source));
+        st.sentAir = air;
+        st.sentWater = water;
+        st.sentArea = areaIndex;
+        st.sentAreaName = areaName;
+        st.sentUnpowered = unpowered;
+        PacketDistributor.sendToPlayer(player, new RadiationSyncPayload(dose, max, stage, rate, source,
+                air, water, areaIndex, areaName, unpowered));
     }
 
     // ---------------------------------------------------------------- эффекты стадий

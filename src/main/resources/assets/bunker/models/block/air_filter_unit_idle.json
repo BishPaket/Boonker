@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "bunker:block/machine_side",
+    "north": "bunker:block/air_filter_unit_front_idle",
+    "south": "bunker:block/air_filter_unit_intake",
+    "east": "bunker:block/machine_side",
+    "west": "bunker:block/machine_side",
+    "up": "bunker:block/machine_top",
+    "down": "bunker:block/machine_top"
+  }
+}

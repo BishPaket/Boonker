@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "SCS",
+    "NTN",
+    "GCG"
+  ],
+  "key": {
+    "C": {
+      "item": "bunker:activated_carbon"
+    },
+    "S": {
+      "tag": "minecraft:sand"
+    },
+    "G": {
+      "item": "minecraft:gravel"
+    },
+    "N": {
+      "item": "minecraft:iron_nugget"
+    },
+    "T": {
+      "item": "minecraft:string"
+    }
+  },
+  "result": {
+    "id": "bunker:water_filter_cartridge",
+    "count": 1
+  }
+}

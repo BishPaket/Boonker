@@ -75,7 +75,7 @@ public class BunkerCoreBlock extends BunkerPartBlock {
     @Override
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
         super.setPlacedBy(level, pos, state, placer, stack);
-        if (level instanceof ServerLevel serverLevel) BunkerManager.get(serverLevel).onCorePlaced(pos, placer, stack);
+        if (level instanceof ServerLevel serverLevel) BunkerManager.get(serverLevel).onCorePlaced(pos, state, placer, stack);
     }
 
     @Override

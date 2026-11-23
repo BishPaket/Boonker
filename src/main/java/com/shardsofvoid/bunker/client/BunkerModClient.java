@@ -3,6 +3,7 @@ package com.shardsofvoid.bunker.client;
 import com.shardsofvoid.bunker.BunkerMod;
 import com.shardsofvoid.bunker.item.RadSuitItem;
 import com.shardsofvoid.bunker.registry.ModItems;
+import com.shardsofvoid.bunker.registry.ModMachines;
 
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ArmorMaterial;
@@ -13,6 +14,8 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
@@ -44,6 +47,11 @@ public final class BunkerModClient {
                 return layerIdx == 1 ? RadSuitItem.levelColor(RadSuitItem.level(stack)) : 0xFFFFFFFF;
             }
         }, ModItems.RADSUIT_HELMET.get(), ModItems.RADSUIT_CHESTPLATE.get(), ModItems.RADSUIT_LEGGINGS.get(), ModItems.RADSUIT_BOOTS.get()));
+
+        // v3: экраны энергоблоков и манекен станции костюмов
+        modBus.addListener(RegisterMenuScreensEvent.class, e -> e.register(ModMachines.MACHINE_MENU.get(), MachineScreen::new));
+        modBus.addListener(EntityRenderersEvent.RegisterRenderers.class,
+                e -> e.registerBlockEntityRenderer(ModMachines.SUIT_STATION_BE.get(), SuitStationRenderer::new));
 
         IEventBus game = NeoForge.EVENT_BUS;
         game.addListener(ClientTickEvent.Post.class, e -> GeigerClicker.tick());

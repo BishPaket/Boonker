@@ -20,6 +20,8 @@ public final class ModNetwork {
                 (payload, ctx) -> com.shardsofvoid.bunker.client.ClientPayloadHandler.handleRadiation(payload));
         registrar.playToClient(BunkerScreenPayload.TYPE, BunkerScreenPayload.STREAM_CODEC,
                 (payload, ctx) -> com.shardsofvoid.bunker.client.ClientPayloadHandler.handleScreen(payload));
+        registrar.playToClient(MachineDataPayload.TYPE, MachineDataPayload.STREAM_CODEC,
+                (payload, ctx) -> com.shardsofvoid.bunker.client.ClientPayloadHandler.handleMachineData(payload));
         registrar.playToClient(HighlightPayload.TYPE, HighlightPayload.STREAM_CODEC,
                 (payload, ctx) -> com.shardsofvoid.bunker.client.ClientPayloadHandler.handleHighlight(payload));
 

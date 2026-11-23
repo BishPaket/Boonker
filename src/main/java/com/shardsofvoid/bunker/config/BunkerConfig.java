@@ -63,12 +63,64 @@ public final class BunkerConfig {
     public static final ModConfigSpec.BooleanValue BUNKER_METAL_BLOCK_FAKE_PLAYERS;
 
     // room
-    public static final ModConfigSpec.IntValue ROOM_SIZE;
+    public static final ModConfigSpec.IntValue ROOM_MIN_SHARED_FACE;
     public static final ModConfigSpec.EnumValue<Adjacency> ROOM_ADJACENCY;
     public static final ModConfigSpec.BooleanValue ROOM_BIND_REQUIRES_ACTIVE;
 
     // upgrade
     public static final ModConfigSpec.BooleanValue UPGRADE_REQUIRES_ACTIVE;
+
+    // v3: area
+    public static final ModConfigSpec.IntValue AREA_MAX_HORIZONTAL;
+    public static final ModConfigSpec.IntValue AREA_MAX_VERTICAL;
+
+    // v3: door
+    public static final ModConfigSpec.IntValue DOOR_GRACE_SECONDS;
+    public static final ModConfigSpec.IntValue DOOR_AUTO_CLOSE_SECONDS;
+    public static final ModConfigSpec.BooleanValue DOOR_LOCKED_BY_DEFAULT;
+
+    // v3: energy
+    public static final ModConfigSpec.IntValue ENERGY_INTERVAL;
+    public static final ModConfigSpec.DoubleValue ENERGY_AREA_BASE;
+    public static final ModConfigSpec.DoubleValue ENERGY_AREA_PER_CELL;
+    public static final ModConfigSpec.IntValue ENERGY_RESTORE_DELAY;
+    public static final ModConfigSpec.IntValue ENERGY_MAX_PER_TYPE;
+    public static final ModConfigSpec.IntValue ENERGY_MAX_INLETS;
+    public static final ModConfigSpec.IntValue ENERGY_MAX_CABLE_NETWORK;
+    public static final ModConfigSpec.BooleanValue ENERGY_ACCEPT_FOREIGN;
+    public static final ModConfigSpec.IntValue ENERGY_FOREIGN_MAX_RATE;
+    public static final ModConfigSpec.BooleanValue ENERGY_SURFACE_TORNADO_IMMUNE;
+    public static final ModConfigSpec.IntValue ENERGY_FVU_BASE;
+    public static final ModConfigSpec.IntValue ENERGY_FVU_CELLS_PER_FE;
+    public static final ModConfigSpec.IntValue ENERGY_PURIFIER;
+    public static final ModConfigSpec.IntValue ENERGY_STATION_PER_PART;
+
+    // v3: generators and storage
+    public static final ModConfigSpec.IntValue GEN_FURNACE_RATE;
+    public static final ModConfigSpec.BooleanValue GEN_FURNACE_INDOOR_PENALTY;
+    public static final ModConfigSpec.IntValue GEN_SOLAR_PEAK;
+    public static final ModConfigSpec.DoubleValue GEN_SOLAR_RAIN;
+    public static final ModConfigSpec.DoubleValue GEN_SOLAR_THUNDER;
+    public static final ModConfigSpec.IntValue BATTERY_CAPACITY;
+    public static final ModConfigSpec.IntValue BATTERY_RATE;
+    public static final ModConfigSpec.IntValue CELL_CAPACITY;
+    public static final ModConfigSpec.IntValue RACK_RATE_PER_CELL;
+
+    // v3: station
+    public static final ModConfigSpec.IntValue STATION_MAX_PER_BUNKER;
+    public static final ModConfigSpec.ConfigValue<String> STATION_MATERIAL;
+    public static final ModConfigSpec.BooleanValue SUIT_ANVIL_REPAIR;
+
+    // v3: life support
+    public static final ModConfigSpec.BooleanValue LIFE_SUPPORT_ENABLED;
+    public static final ModConfigSpec.BooleanValue FILTER_REQUIRE_OPEN_INTAKE;
+    public static final ModConfigSpec.IntValue FILTER_AIR_RESOURCE;
+    public static final ModConfigSpec.IntValue FILTER_WATER_RESOURCE;
+    public static final ModConfigSpec.DoubleValue AIR_RESTORE_PER_MIN;
+    public static final ModConfigSpec.DoubleValue AIR_DRAIN_PER_PLAYER_MIN;
+    public static final ModConfigSpec.IntValue WATER_PER_PLAYER_MIN;
+    public static final ModConfigSpec.IntValue WATER_PURIFY_SECONDS;
+    public static final ModConfigSpec.IntValue WATER_DEHYDRATION_WEAKNESS_MIN;
 
     public enum Adjacency { SHARED_WALL, DOUBLE_WALL }
 
@@ -179,8 +231,8 @@ public final class BunkerConfig {
         b.pop();
 
         b.push("room");
-        ROOM_SIZE = b.comment("Размер куба комнаты (нечётный).")
-                .defineInRange("size", 5, 3, 15);
+        ROOM_MIN_SHARED_FACE = b.comment("v3 1.5: минимальная общая грань соседних областей, блоков (5 → проход не меньше 3×3).")
+                .defineInRange("minSharedFace", 5, 3, 17);
         ROOM_ADJACENCY = b.comment("SHARED_WALL — общая стена, DOUBLE_WALL — у каждого куба своя стена вплотную.")
                 .defineEnum("adjacency", Adjacency.SHARED_WALL);
         ROOM_BIND_REQUIRES_ACTIVE = b.comment("Привязать блок комнат можно только к активному ядру.")
@@ -192,16 +244,108 @@ public final class BunkerConfig {
                 .define("requiresActive", true);
         b.pop();
 
+        b.push("area");
+        AREA_MAX_HORIZONTAL = b.comment("v3 1.6: предел внутреннего размера области по X и Z.")
+                .defineInRange("maxHorizontal", 7, 3, 31);
+        AREA_MAX_VERTICAL = b.comment("v3 1.6: предел внутреннего размера области по Y.")
+                .defineInRange("maxVertical", 5, 3, 31);
+        b.pop();
+
+        b.push("door");
+        DOOR_GRACE_SECONDS = b.comment("v3 2.2: сколько секунд открытая гермодверь/гермолюк не снимает защиту.")
+                .defineInRange("graceSeconds", 10, 0, 600);
+        DOOR_AUTO_CLOSE_SECONDS = b.comment("v3 2.2: через сколько секунд гермодверь закрывается сама (если нет сигнала редстоуна).")
+                .defineInRange("autoCloseSeconds", 5, 1, 600);
+        DOOR_LOCKED_BY_DEFAULT = b.comment("v3 2.3: гермодвери нового бункера заперты.")
+                .define("lockedByDefault", false);
+        b.pop();
+
+        b.push("bunker");
+        b.push("energy");
+        ENERGY_INTERVAL = b.comment("v3 3.1: период расчёта энергии, тиков (весь интервал считается сразу).")
+                .defineInRange("interval", 20, 1, 200);
+        ENERGY_AREA_BASE = b.comment("v3 3.3: P_base — потребление области 3×3×3, FE/t.")
+                .defineInRange("areaBase", 10.0, 0.0, 100000.0);
+        ENERGY_AREA_PER_CELL = b.comment("v3 3.3: k — FE/t за каждую ячейку объёма сверх 27.")
+                .defineInRange("areaPerCell", 0.5, 0.0, 10000.0);
+        ENERGY_RESTORE_DELAY = b.comment("v3 3.5: период автоматического включения обесточенной комнаты, тиков.")
+                .defineInRange("restoreDelay", 100, 20, 72000);
+        ENERGY_MAX_PER_TYPE = b.comment("v3 4.2: сколько генераторов одного типа работает на бункер.")
+                .defineInRange("maxPerType", 1, 1, 64);
+        ENERGY_MAX_INLETS = b.comment("v3 4.3: энерговводов на бункер.")
+                .defineInRange("maxInlets", 1, 1, 16);
+        ENERGY_MAX_CABLE_NETWORK = b.comment("v3 4.3: максимум блоков кабеля в одной сети.")
+                .defineInRange("maxCableNetwork", 512, 1, 100000);
+        ENERGY_ACCEPT_FOREIGN = b.comment("v3 4.4: энерговвод принимает FE других модов (Create Crafts & Additions и т. п.).")
+                .define("acceptForeignFE", true);
+        ENERGY_FOREIGN_MAX_RATE = b.comment("v3 4.4: потолок «Внешнего ввода», FE/t.")
+                .defineInRange("foreignMaxRate", 40, 0, 1_000_000);
+        ENERGY_FVU_BASE = b.comment("[доп.] ФВУ: базовое потребление, FE/t.").defineInRange("filterUnitBase", 2, 0, 100000);
+        ENERGY_FVU_CELLS_PER_FE = b.comment("[доп.] ФВУ: +1 FE/t за каждые начатые N ячеек зоны.").defineInRange("filterUnitCellsPerFE", 50, 1, 100000);
+        ENERGY_PURIFIER = b.comment("[доп.] Станция водоочистки, FE/t, пока очищает.").defineInRange("purifier", 3, 0, 100000);
+        ENERGY_STATION_PER_PART = b.comment("[доп.] Станция обслуживания: FE/t на чинящуюся часть.").defineInRange("stationPerPart", 10, 0, 100000);
+        b.pop();
+        b.pop();
+
+        b.push("energy");
+        ENERGY_SURFACE_TORNADO_IMMUNE = b.comment("v3 4.3: кабели и генераторы защищены от взрывов и торнадо.")
+                .define("surfaceTornadoImmune", false);
+        b.pop();
+
+        b.push("generator");
+        b.push("furnace");
+        GEN_FURNACE_RATE = b.comment("Твердотопливный генератор, FE/t, пока горит.").defineInRange("rate", 8, 0, 100000);
+        GEN_FURNACE_INDOOR_PENALTY = b.comment("Горящий в зоне бункера генератор ускоряет износ фильтра ФВУ.").define("indoorPenalty", true);
+        b.pop();
+        b.push("solar");
+        GEN_SOLAR_PEAK = b.comment("Солнечная панель в полдень, FE/t.").defineInRange("peak", 20, 0, 100000);
+        GEN_SOLAR_RAIN = b.comment("Множитель в дождь.").defineInRange("rainMultiplier", 0.5, 0.0, 1.0);
+        GEN_SOLAR_THUNDER = b.comment("Множитель в грозу.").defineInRange("thunderMultiplier", 0.2, 0.0, 1.0);
+        b.pop();
+        b.pop();
+
+        b.push("storage");
+        BATTERY_CAPACITY = b.comment("v3 5.1: ёмкость аккумулятора, FE.").defineInRange("batteryCapacity", 200_000, 1, Integer.MAX_VALUE);
+        BATTERY_RATE = b.comment("v3 5.1: заряд/разряд аккумулятора, FE/t.").defineInRange("batteryRate", 100, 1, 1_000_000);
+        CELL_CAPACITY = b.comment("v3 5.2: ёмкость энергоячейки, FE (меняет ёмкость только новых расчётов, предмет хранит заряд).")
+                .defineInRange("cellCapacity", 50_000, 1, Integer.MAX_VALUE);
+        RACK_RATE_PER_CELL = b.comment("v3 5.3: заряд/разряд одной ячейки в стойке, FE/t.").defineInRange("rackRatePerCell", 50, 1, 1_000_000);
+        b.pop();
+
+        b.push("station");
+        STATION_MAX_PER_BUNKER = b.comment("v3 7.2: станций обслуживания на бункер.").defineInRange("maxPerBunker", 1, 1, 16);
+        STATION_MATERIAL = b.comment("v3 7.2: расход материала, \"id_предмета N\" — 1 предмет на N единиц прочности (5-й слот).",
+                        "Пусто — выключено. Пример: \"minecraft:iron_ingot 60\".")
+                .define("materialPerDurability", "");
+        b.pop();
+
+        b.push("suit");
+        SUIT_ANVIL_REPAIR = b.comment("v3 7.3: ремонт костюма на наковальне и в сетке крафта. false — только станция обслуживания.")
+                .define("anvilRepair", false);
+        b.pop();
+
+        b.push("lifeSupport");
+        LIFE_SUPPORT_ENABLED = b.comment("v3 8: воздух и вода бункера. Совет при обновлении: сначала false, включить через 1–2 сессии.")
+                .define("enabled", true);
+        AIR_RESTORE_PER_MIN = b.comment("Работающая ФВУ: +% воздуха в минуту.").defineInRange("airRestorePerMinute", 5.0, 0.0, 100.0);
+        AIR_DRAIN_PER_PLAYER_MIN = b.comment("Без ФВУ: −% воздуха в минуту за каждого игрока в зоне.").defineInRange("airDrainPerPlayerMinute", 2.0, 0.0, 100.0);
+        WATER_PER_PLAYER_MIN = b.comment("Расход чистой воды, mB в минуту на игрока.").defineInRange("waterPerPlayerMinute", 50, 0, 100000);
+        WATER_PURIFY_SECONDS = b.comment("Очистка 1000 mB, секунд.").defineInRange("purifySeconds", 30, 1, 3600);
+        WATER_DEHYDRATION_WEAKNESS_MIN = b.comment("Через сколько минут обезвоживания добавляется Слабость I.").defineInRange("dehydrationWeaknessMinutes", 10, 0, 1440);
+        b.pop();
+
+        b.push("filter");
+        FILTER_REQUIRE_OPEN_INTAKE = b.comment("v3 8.2: перед воздухозабором ФВУ снаружи должен быть неполный блок.")
+                .define("requireOpenIntake", true);
+        FILTER_AIR_RESOURCE = b.comment("Ресурс фильтра-поглотителя (ед., 1 ед. в минуту на игрока).").defineInRange("airResource", 120, 1, 100000);
+        FILTER_WATER_RESOURCE = b.comment("Ресурс водяного картриджа (ед., 1 ед. на 1000 mB).").defineInRange("waterResource", 16, 1, 100000);
+        b.pop();
+
         SPEC = b.build();
     }
 
     private BunkerConfig() {}
 
-    /** Размер комнаты, приведённый к нечётному. */
-    public static int roomSize() {
-        int s = ROOM_SIZE.get();
-        return (s % 2 == 0) ? s + 1 : s;
-    }
 
     public static double stageThreshold(int stage) {
         List<? extends Double> list = RADIATION_STAGE_THRESHOLDS.get();

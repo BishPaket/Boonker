@@ -6,6 +6,7 @@
   "plugin": "com.shardsofvoid.bunker.mixin.BunkerMixinPlugin",
   "mixins": [
     "ExplosionMixin",
+    "FoodDataMixin",
     "SmithingMenuMixin",
     "compat.WastelandsRadiationMixin",
     "compat.TornadoHelperMixin",

@@ -1,0 +1,13 @@
+{
+  "type": "bunker:add_partial_item",
+  "conditions": [
+    {
+      "condition": "neoforge:loot_table_id",
+      "loot_table_id": "minecraft:chests/ancient_city"
+    }
+  ],
+  "item": "bunker:energy_cell",
+  "chance": 0.25,
+  "min": 0.0,
+  "max": 0.6
+}

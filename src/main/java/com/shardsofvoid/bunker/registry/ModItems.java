@@ -102,6 +102,7 @@ public final class ModItems {
                     }
                 }
                 out.accept(RADSUIT_UPGRADE_TEMPLATE.get());
+                ModMachines.creativeItems(out);
             })
             .build());
 

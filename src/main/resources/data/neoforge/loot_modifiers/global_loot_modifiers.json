@@ -1,0 +1,22 @@
+{
+  "replace": false,
+  "entries": [
+    "bunker:energy_cell_ancient_city_0",
+    "bunker:energy_cell_ancient_city_1",
+    "bunker:energy_cell_dungeon",
+    "bunker:energy_cell_mineshaft",
+    "bunker:energy_cell_ruined_portal",
+    "bunker:energy_cell_shipwreck_0",
+    "bunker:energy_cell_shipwreck_1",
+    "bunker:air_filter_cartridge_0",
+    "bunker:water_filter_cartridge_0",
+    "bunker:air_filter_cartridge_1",
+    "bunker:water_filter_cartridge_1",
+    "bunker:air_filter_cartridge_2",
+    "bunker:water_filter_cartridge_2",
+    "bunker:air_filter_cartridge_3",
+    "bunker:water_filter_cartridge_3",
+    "bunker:air_filter_cartridge_4",
+    "bunker:water_filter_cartridge_4"
+  ]
+}

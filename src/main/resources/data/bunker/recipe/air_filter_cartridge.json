@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "CWC",
+    "IPI",
+    "CWC"
+  ],
+  "key": {
+    "C": {
+      "item": "bunker:activated_carbon"
+    },
+    "W": {
+      "tag": "minecraft:wool"
+    },
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "P": {
+      "item": "minecraft:paper"
+    }
+  },
+  "result": {
+    "id": "bunker:air_filter_cartridge",
+    "count": 1
+  }
+}

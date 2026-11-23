@@ -30,6 +30,6 @@ public abstract class ExplosionMixin {
 
     @Inject(method = "finalizeExplosion", at = @At("HEAD"))
     private void bunker$protectBlocks(boolean spawnParticles, CallbackInfo ci) {
-        getToBlow().removeIf(pos -> level.getBlockState(pos).is(ModMisc.INDESTRUCTIBLE));
+        getToBlow().removeIf(pos -> ModMisc.isProtected(level.getBlockState(pos)));
     }
 }

@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "bunker:furnace_generator",
+    "bunker:bunker_battery",
+    "bunker:cell_rack",
+    "bunker:suit_station",
+    "bunker:water_purifier"
+  ]
+}

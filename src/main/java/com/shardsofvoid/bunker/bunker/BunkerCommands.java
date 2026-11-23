@@ -77,6 +77,43 @@ public final class BunkerCommands {
         Located loc = list.get(0);
         BunkerManager m = BunkerManager.get(loc.level());
         Bunker b = loc.bunker();
+        // v3 9.3: понижение отклоняется, если область, комнаты или аккумуляторы не влезают в лимиты нового уровня
+        List<Component> problems = new java.util.ArrayList<>();
+        if (!room) {
+            if (level < b.level) {
+                BunkerUpgrades.LevelDef def = BunkerUpgrades.core(level);
+                if (b.coreArea.expansionUsed() > def.expansion()) {
+                    problems.add(Component.translatable("command.bunker.setlevel.area", Component.translatable("gui.bunker.area.core"),
+                            b.coreArea.sizeText(), b.coreArea.expansionUsed(), def.expansion()));
+                }
+                if (b.rooms.size() > def.maxRooms()) {
+                    problems.add(Component.translatable("command.bunker.setlevel.rooms", b.rooms.size(), def.maxRooms()));
+                }
+                int batteries = 0;
+                for (com.shardsofvoid.bunker.energy.BunkerMachineBlockEntity be : m.machines()) {
+                    if (be.kind == com.shardsofvoid.bunker.energy.MachineKind.BATTERY && b.id.equals(be.bunkerId)) batteries++;
+                }
+                if (batteries > def.maxBatteries()) {
+                    problems.add(Component.translatable("command.bunker.setlevel.batteries", batteries, def.maxBatteries()));
+                }
+            }
+        } else {
+            for (java.util.Map.Entry<BlockPos, Area> e : b.rooms.entrySet()) {
+                if (pos != null && !pos.equals(e.getKey())) continue;
+                Area a = e.getValue();
+                int budget = BunkerUpgrades.room(level).expansion();
+                if (level < a.level && a.expansionUsed() > budget) {
+                    problems.add(Component.translatable("command.bunker.setlevel.area",
+                            com.shardsofvoid.bunker.energy.EnergySystem.roomName(b, a), a.sizeText(), a.expansionUsed(), budget));
+                }
+            }
+        }
+        if (!problems.isEmpty()) {
+            ctx.getSource().sendFailure(Component.translatable("command.bunker.setlevel.denied"));
+            for (Component c : problems) ctx.getSource().sendFailure(Component.literal(" • ").append(c));
+            return 0;
+        }
+
         int changed = 0;
         if (!room) {
             m.setCoreLevel(b, level);

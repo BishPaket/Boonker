@@ -38,7 +38,8 @@ import net.minecraft.world.item.Items;
  * ] }
  * </pre>
  * cost уровня N — стоимость перехода на уровень N. Поддерживаемые эффекты: max_rooms (ядро), dose_decay (ед./с
- * снятия дозы у игроков в кубе), mob_effects (эффекты игрокам в кубе). Пустой effects допустим.
+ * снятия дозы у игроков в объёме), mob_effects (эффекты игрокам в объёме), v3: generation (ядро, FE/t),
+ * expansion (бюджет расширения), max_batteries (ядро). Принимаются и camelCase-имена. Пустой effects допустим.
  * Файл из пространства имён, отличного от bunker, перекрывает встроенный.
  */
 public final class BunkerUpgrades extends SimpleJsonResourceReloadListener {
@@ -71,7 +72,12 @@ public final class BunkerUpgrades extends SimpleJsonResourceReloadListener {
         }
     }
 
-    public record LevelDef(int level, List<Cost> cost, int maxRooms, double doseDecay, List<EffectDef> effects) {}
+    /**
+     * v3: generation — встроенная генерация ядра, FE/t; expansion — бюджет расширения (клеток суммарно по осям);
+     * maxBatteries — сколько аккумуляторов работают в бункере.
+     */
+    public record LevelDef(int level, List<Cost> cost, int maxRooms, double doseDecay, List<EffectDef> effects,
+                           int generation, int expansion, int maxBatteries) {}
 
     private static List<LevelDef> core;
     private static List<LevelDef> room;
@@ -96,7 +102,9 @@ public final class BunkerUpgrades extends SimpleJsonResourceReloadListener {
 
     private static LevelDef find(List<LevelDef> list, int level) {
         for (LevelDef d : list) if (d.level() == level) return d;
-        return new LevelDef(level, List.of(), level == 1 ? 3 : level == 2 ? 6 : 10, 0, List.of());
+        int i = Math.max(0, Math.min(2, level - 1));
+        return new LevelDef(level, List.of(), new int[] {3, 6, 10}[i], 0, List.of(),
+                new int[] {35, 50, 80}[i], new int[] {0, 2, 4}[i], new int[] {1, 2, 4}[i]);
     }
 
     @Override
@@ -140,7 +148,11 @@ public final class BunkerUpgrades extends SimpleJsonResourceReloadListener {
                 }
             }
             JsonObject effects = GsonHelper.getAsJsonObject(o, "effects", new JsonObject());
-            int maxRooms = GsonHelper.getAsInt(effects, "max_rooms", isCore ? find(defaults(true), level).maxRooms() : 0);
+            LevelDef base = find(defaults(isCore), level);
+            int maxRooms = intAlias(effects, "max_rooms", "maxRooms", base.maxRooms());
+            int generation = intAlias(effects, "generation", "generation", base.generation());
+            int expansion = intAlias(effects, "expansion", "expansion", base.expansion());
+            int maxBatteries = intAlias(effects, "max_batteries", "maxBatteries", base.maxBatteries());
             double decay = GsonHelper.getAsDouble(effects, "dose_decay", 0.0);
             List<EffectDef> mobEffects = new ArrayList<>();
             for (JsonElement e : GsonHelper.getAsJsonArray(effects, "mob_effects", new JsonArray())) {
@@ -150,24 +162,31 @@ public final class BunkerUpgrades extends SimpleJsonResourceReloadListener {
                         h -> mobEffects.add(new EffectDef(h, GsonHelper.getAsInt(eo, "amplifier", 0))),
                         () -> BunkerMod.LOGGER.warn("bunker_upgrades: неизвестный эффект {}", id));
             }
-            out.add(new LevelDef(level, List.copyOf(cost), maxRooms, decay, List.copyOf(mobEffects)));
+            out.add(new LevelDef(level, List.copyOf(cost), maxRooms, decay, List.copyOf(mobEffects),
+                    Math.max(0, generation), Math.max(0, expansion), Math.max(0, maxBatteries)));
         }
         return List.copyOf(out);
+    }
+
+    private static int intAlias(JsonObject o, String snake, String camel, int fallback) {
+        if (o.has(snake)) return GsonHelper.getAsInt(o, snake);
+        if (o.has(camel)) return GsonHelper.getAsInt(o, camel);
+        return fallback;
     }
 
     /** Стартовые значения из ТЗ на случай, если датапак не найден. */
     private static List<LevelDef> defaults(boolean isCore) {
         if (isCore) {
             return List.of(
-                    new LevelDef(1, List.of(), 3, 0, List.of()),
-                    new LevelDef(2, List.of(item(METAL, 16), item("minecraft:diamond", 4)), 6, 0, List.of()),
+                    new LevelDef(1, List.of(), 3, 0, List.of(), 35, 0, 1),
+                    new LevelDef(2, List.of(item(METAL, 16), item("minecraft:diamond", 4)), 6, 0, List.of(), 50, 2, 2),
                     new LevelDef(3, List.of(item(METAL, 32), item("minecraft:diamond", 8),
-                            item("minecraft:netherite_ingot", 2)), 10, 0, List.of()));
+                            item("minecraft:netherite_ingot", 2)), 10, 0, List.of(), 80, 4, 4));
         }
         return List.of(
-                new LevelDef(1, List.of(), 0, 0, List.of()),
-                new LevelDef(2, List.of(item(METAL, 8), item("minecraft:diamond", 2)), 0, 0, List.of()),
-                new LevelDef(3, List.of(item(METAL, 16), item("minecraft:diamond", 4)), 0, 0, List.of()));
+                new LevelDef(1, List.of(), 0, 0, List.of(), 0, 0, 0),
+                new LevelDef(2, List.of(item(METAL, 8), item("minecraft:diamond", 2)), 0, 0, List.of(), 0, 2, 0),
+                new LevelDef(3, List.of(item(METAL, 16), item("minecraft:diamond", 4)), 0, 0, List.of(), 0, 4, 0));
     }
 
     private static Cost item(String id, int count) {

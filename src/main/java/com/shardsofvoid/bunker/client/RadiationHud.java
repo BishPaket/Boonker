@@ -27,14 +27,16 @@ public final class RadiationHud {
         Minecraft mc = Minecraft.getInstance();
         if (mc.options.hideGui || mc.player == null || !ClientState.hasData || !BunkerClientConfig.HUD_ENABLED.get()) return;
 
+        boolean life = ClientState.air >= 0 || ClientState.unpowered;
+        int height = HEIGHT + (life ? 11 : 0);
         int x = BunkerClientConfig.HUD_OFFSET_X.get();
         int y = BunkerClientConfig.HUD_OFFSET_Y.get();
         switch (BunkerClientConfig.HUD_ANCHOR.get()) {
             case TOP_RIGHT -> x = g.guiWidth() - WIDTH - x;
-            case BOTTOM_LEFT -> y = g.guiHeight() - HEIGHT - y;
+            case BOTTOM_LEFT -> y = g.guiHeight() - height - y;
             case BOTTOM_RIGHT -> {
                 x = g.guiWidth() - WIDTH - x;
-                y = g.guiHeight() - HEIGHT - y;
+                y = g.guiHeight() - height - y;
             }
             default -> {
             }
@@ -44,7 +46,8 @@ public final class RadiationHud {
         int stage = Math.max(0, Math.min(4, ClientState.stage));
         int color = STAGE_COLORS[stage];
 
-        g.fill(x, y, x + WIDTH, y + HEIGHT, 0x90000000);
+        g.fill(x, y, x + WIDTH, y + height, 0x90000000);
+        if (life) renderLife(g, font, mc, x + 3, y + HEIGHT);
 
         // значок источника защиты
         ItemStack icon = switch (ClientState.source) {
@@ -74,6 +77,30 @@ public final class RadiationHud {
 
         if (ClientState.source == RadiationSource.BUNKER) {
             g.fill(barX, barY - 1, barX + barW, barY, 0xFF55AAFF);
+        }
+    }
+
+    /** v3 8.7: значки воздуха и воды, мигают ниже 25%; «Обесточено» в отключённой или обесточенной комнате. */
+    private static void renderLife(GuiGraphics g, Font font, Minecraft mc, int x, int y) {
+        boolean blinkOff = mc.level != null && (mc.level.getGameTime() / 10) % 2 == 0;
+        int cx = x;
+        if (ClientState.air >= 0) {
+            int air = ClientState.air;
+            if (!(air < 25 && blinkOff)) {
+                Component t = Component.translatable("hud.bunker.air", air);
+                g.drawString(font, t, cx, y, air < 25 ? 0xFFFF5555 : air < 50 ? 0xFFFFAA00 : 0xFFAADDFF, true);
+            }
+            cx += 50;
+            int water = ClientState.water;
+            if (water >= 0 && !(water < 25 && blinkOff)) {
+                Component t = Component.translatable("hud.bunker.water", water);
+                g.drawString(font, t, cx, y, water < 25 ? 0xFFFF5555 : 0xFF66AAFF, true);
+            }
+        } else if (ClientState.unpowered) {
+            g.drawString(font, Component.translatable("hud.bunker.unpowered"), cx, y, 0xFFFF5555, true);
+        }
+        if (ClientState.unpowered && ClientState.air >= 0 && !blinkOff) {
+            g.fill(x - 3, y - 1, x - 1, y + 8, 0xFFFF5555);
         }
     }
 

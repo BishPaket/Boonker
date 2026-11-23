@@ -3,6 +3,7 @@ package com.shardsofvoid.bunker;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
+import com.shardsofvoid.bunker.bunker.BunkerActions;
 import com.shardsofvoid.bunker.bunker.BunkerCommands;
 import com.shardsofvoid.bunker.bunker.BunkerEvents;
 import com.shardsofvoid.bunker.bunker.BunkerManager;
@@ -15,7 +16,10 @@ import com.shardsofvoid.bunker.radiation.RadiationCommands;
 import com.shardsofvoid.bunker.radiation.RadiationSystem;
 import com.shardsofvoid.bunker.registry.ModAttachments;
 import com.shardsofvoid.bunker.registry.ModBlocks;
+import com.shardsofvoid.bunker.item.EnergyCellItem;
 import com.shardsofvoid.bunker.registry.ModComponents;
+import com.shardsofvoid.bunker.registry.ModEffects;
+import com.shardsofvoid.bunker.registry.ModMachines;
 import com.shardsofvoid.bunker.registry.ModItems;
 import com.shardsofvoid.bunker.registry.ModMisc;
 
@@ -25,7 +29,11 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.energy.ComponentEnergyStorage;
+import net.neoforged.neoforge.event.AnvilUpdateEvent;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.ItemAttributeModifierEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
@@ -43,7 +51,7 @@ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
 /**
  * Bunker &amp; Radiation — радиация по всей карте, радиационный костюм и система герметичных бункеров
- * для нового сезона Shards of Void (ТЗ v2).
+ * для нового сезона Shards of Void (ТЗ v2), плюс энергия, расширение и жизнеобеспечение бункеров (ТЗ v3).
  */
 @Mod(BunkerMod.MODID)
 public final class BunkerMod {
@@ -52,6 +60,21 @@ public final class BunkerMod {
 
     public static ResourceLocation id(String path) {
         return ResourceLocation.fromNamespaceAndPath(MODID, path);
+    }
+
+    /** v3 3.2, 5.2, 8.4: энергия — только у энерговвода, аккумулятора, стойки и ячейки; вода — у станции очистки. */
+    private static void registerCapabilities(RegisterCapabilitiesEvent event) {
+        event.registerBlockEntity(Capabilities.EnergyStorage.BLOCK, ModMachines.POWER_INLET_BE.get(), (be, side) -> be.energyStorage());
+        event.registerBlockEntity(Capabilities.EnergyStorage.BLOCK, ModMachines.BATTERY_BE.get(), (be, side) -> be.energyStorage());
+        event.registerBlockEntity(Capabilities.EnergyStorage.BLOCK, ModMachines.CELL_RACK_BE.get(), (be, side) -> be.energyStorage());
+        event.registerBlockEntity(Capabilities.FluidHandler.BLOCK, ModMachines.WATER_PURIFIER_BE.get(), (be, side) -> be.fluidHandler());
+        event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModMachines.FURNACE_GENERATOR_BE.get(), (be, side) -> be.items());
+        event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModMachines.CELL_RACK_BE.get(), (be, side) -> be.items());
+        event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModMachines.AIR_FILTER_UNIT_BE.get(), (be, side) -> be.items());
+        event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModMachines.WATER_PURIFIER_BE.get(), (be, side) -> be.items());
+        event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModMachines.SUIT_STATION_BE.get(), (be, side) -> be.items());
+        event.registerItem(Capabilities.EnergyStorage.ITEM, (stack, ctx) -> new ComponentEnergyStorage(stack,
+                ModComponents.STORED_ENERGY.get(), EnergyCellItem.capacity(), BunkerConfig.RACK_RATE_PER_CELL.get()), ModMachines.ENERGY_CELL.get());
     }
 
     public BunkerMod(IEventBus modBus, ModContainer container) {
@@ -69,6 +92,12 @@ public final class BunkerMod {
         ModItems.TABS.register(modBus);
         ModMisc.SOUNDS.register(modBus);
         ModMisc.RECIPE_SERIALIZERS.register(modBus);
+        // v3: энергия и жизнеобеспечение
+        ModMachines.init();
+        ModMachines.MENUS.register(modBus);
+        ModEffects.EFFECTS.register(modBus);
+        ModMisc.LOOT_MODIFIERS.register(modBus);
+        modBus.addListener(RegisterCapabilitiesEvent.class, BunkerMod::registerCapabilities);
 
         modBus.addListener(RegisterPayloadHandlersEvent.class, ModNetwork::register);
 
@@ -99,6 +128,8 @@ public final class BunkerMod {
         game.addListener(ChunkEvent.Load.class, BunkerEvents::onChunkLoad);
         game.addListener(LevelTickEvent.Post.class, BunkerEvents::onLevelTick);
         game.addListener(LevelEvent.Unload.class, BunkerEvents::onLevelUnload);
+        game.addListener(PlayerEvent.PlayerLoggedOutEvent.class, e -> BunkerActions.forget(e.getEntity().getUUID()));
+        game.addListener(AnvilUpdateEvent.class, BunkerEvents::onAnvilUpdate);
 
         game.addListener(RegisterCommandsEvent.class, e -> {
             RadiationCommands.register(e.getDispatcher());

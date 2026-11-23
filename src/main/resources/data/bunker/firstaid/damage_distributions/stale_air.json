@@ -1,0 +1,11 @@
+{
+  "type": "firstaid:static",
+  "damageTypes": [
+    "bunker:stale_air"
+  ],
+  "algorithm": {
+    "type": "firstaid:equal",
+    "reductionMultiplier": 1.0,
+    "tryNoKill": false
+  }
+}

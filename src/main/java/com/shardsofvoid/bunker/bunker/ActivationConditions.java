@@ -3,9 +3,9 @@ package com.shardsofvoid.bunker.bunker;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.shardsofvoid.bunker.bunker.BunkerGeometry.Cube;
 import com.shardsofvoid.bunker.config.BunkerConfig;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 
@@ -28,8 +28,10 @@ public final class ActivationConditions {
                 Component.translatable("gui.bunker.cond.height.value", y, maxY), y <= maxY));
 
         if (BunkerConfig.BUNKER_CORE_REQUIRE_UNDERGROUND.get()) {
-            // Ядро — непрозрачный блок, поэтому смотрим ячейку над ним.
-            boolean sky = level.isLoaded(bunker.core.above()) && level.canSeeSky(bunker.core.above());
+            // v3 1.2: проверяется над крышей области ядра, а не над самим ядром (оно может стоять в стене).
+            Area a = bunker.coreArea;
+            BlockPos roof = new BlockPos((a.minX + a.maxX) / 2, a.maxY + 1, (a.minZ + a.maxZ) / 2);
+            boolean sky = level.isLoaded(roof) && level.canSeeSky(roof);
             out.add(new Result(Component.translatable("gui.bunker.cond.underground"),
                     Component.translatable(sky ? "gui.bunker.cond.underground.sky" : "gui.bunker.cond.underground.covered"), !sky));
         }
@@ -52,15 +54,8 @@ public final class ActivationConditions {
         return true;
     }
 
-    /** Чужой бункер, с областью которого пересекается куб ядра. */
+    /** Чужой бункер, с областью которого пересекается область ядра (v3 1.2). */
     private static Bunker overlappingForeign(ServerLevel level, Bunker bunker) {
-        Cube core = BunkerGeometry.coreCube(bunker.core);
-        for (Bunker other : BunkerManager.get(level).all()) {
-            if (other == bunker) continue;
-            for (Cube c : BunkerGeometry.cubes(other)) {
-                if (c.intersects(core)) return other;
-            }
-        }
-        return null;
+        return BunkerManager.get(level).foreignOverlap(bunker, bunker.coreArea);
     }
 }

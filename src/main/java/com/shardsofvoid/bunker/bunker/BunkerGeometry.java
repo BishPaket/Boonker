@@ -1,5 +1,6 @@
 package com.shardsofvoid.bunker.bunker;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,133 +13,112 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 
 /**
- * Геометрия бункера (разделы 4.4, 5.4, 6.3–6.5): кубы ядра и комнат, ожидаемая оболочка,
- * проходные зоны общих граней, ограничивающий объём.
+ * Геометрия областей (ТЗ v3, 1.5): общая грань, проходные зоны, ожидаемая оболочка, связность.
  */
 public final class BunkerGeometry {
-    public static final int CORE_HALF = 2; // куб 5×5×5
-
-    /** Куб с центром center и полуразмером half (размер 2·half+1). */
-    public record Cube(BlockPos center, int half, boolean isCore) {
-        public int minX() { return center.getX() - half; }
-        public int minY() { return center.getY() - half; }
-        public int minZ() { return center.getZ() - half; }
-        public int maxX() { return center.getX() + half; }
-        public int maxY() { return center.getY() + half; }
-        public int maxZ() { return center.getZ() + half; }
-
-        public boolean contains(int x, int y, int z) {
-            return x >= minX() && x <= maxX() && y >= minY() && y <= maxY() && z >= minZ() && z <= maxZ();
-        }
-
-        public boolean isShell(int x, int y, int z) {
-            return contains(x, y, z) && (x == minX() || x == maxX() || y == minY() || y == maxY() || z == minZ() || z == maxZ());
-        }
-
-        public boolean isInterior(int x, int y, int z) {
-            return x > minX() && x < maxX() && y > minY() && y < maxY() && z > minZ() && z < maxZ();
-        }
-
-        public boolean intersects(Cube o) {
-            return minX() <= o.maxX() && maxX() >= o.minX() && minY() <= o.maxY() && maxY() >= o.minY()
-                    && minZ() <= o.maxZ() && maxZ() >= o.minZ();
-        }
-
-        /** Толщина пересечения по самой тонкой оси (0 — не пересекаются). */
-        public int minIntersectionThickness(Cube o) {
-            if (!intersects(o)) return 0;
-            int dx = Math.min(maxX(), o.maxX()) - Math.max(minX(), o.minX()) + 1;
-            int dy = Math.min(maxY(), o.maxY()) - Math.max(minY(), o.minY()) + 1;
-            int dz = Math.min(maxZ(), o.maxZ()) - Math.max(minZ(), o.minZ()) + 1;
-            return Math.min(dx, Math.min(dy, dz));
-        }
-    }
-
     private BunkerGeometry() {}
 
-    public static int roomHalf() {
-        return (BunkerConfig.roomSize() - 1) / 2;
+    /**
+     * Общая грань двух областей. dir — сторона области a, к которой примыкает b.
+     * Прямоугольник [u0..u1]×[v0..v1] лежит в плоскостях planeA (стена a) и planeB (стена b; в SHARED_WALL совпадают).
+     */
+    public record Face(Direction dir, int planeA, int planeB, int u0, int u1, int v0, int v1) {
+        public int width() { return u1 - u0 + 1; }
+        public int height() { return v1 - v0 + 1; }
     }
 
-    public static Cube coreCube(BlockPos core) {
-        return new Cube(core, CORE_HALF, true);
+    public static Adjacency mode() {
+        return BunkerConfig.ROOM_ADJACENCY.get();
     }
 
-    public static Cube roomCube(BlockPos room) {
-        return new Cube(room, roomHalf(), false);
+    public static int minFace() {
+        return BunkerConfig.ROOM_MIN_SHARED_FACE.get();
     }
 
-    public static List<Cube> cubes(Bunker bunker) {
-        List<Cube> list = new ArrayList<>(1 + bunker.rooms.size());
-        list.add(coreCube(bunker.core));
-        for (BlockPos room : bunker.rooms.keySet()) list.add(roomCube(room));
-        return list;
-    }
-
-    /** Расстояние между центрами соседних кубов по правилу смежности. */
-    public static int adjacencyStep(Cube a, Cube b, Adjacency mode) {
-        return a.half() + b.half() + (mode == Adjacency.DOUBLE_WALL ? 1 : 0);
-    }
-
-    /** Ось, по которой кубы смежны, или null. Центры совпадают по двум осям и отстоят на шаг по третьей. */
-    public static Direction adjacentDirection(Cube from, Cube to, Adjacency mode) {
-        int step = adjacencyStep(from, to, mode);
-        int dx = to.center().getX() - from.center().getX();
-        int dy = to.center().getY() - from.center().getY();
-        int dz = to.center().getZ() - from.center().getZ();
-        if (dy == 0 && dz == 0 && Math.abs(dx) == step) return dx > 0 ? Direction.EAST : Direction.WEST;
-        if (dx == 0 && dz == 0 && Math.abs(dy) == step) return dy > 0 ? Direction.UP : Direction.DOWN;
-        if (dx == 0 && dy == 0 && Math.abs(dz) == step) return dz > 0 ? Direction.SOUTH : Direction.NORTH;
+    /** Общая грань a и b по правилу v3 1.5 или null, если области не смежны. */
+    public static Face sharedFace(Area a, Area b, Adjacency mode) {
+        int gap = mode == Adjacency.DOUBLE_WALL ? 1 : 0;
+        // X
+        if (a.maxX + gap == b.minX || b.maxX + gap == a.minX) {
+            Face f = face(a.maxX + gap == b.minX ? Direction.EAST : Direction.WEST, a, b,
+                    Math.max(a.minY, b.minY), Math.min(a.maxY, b.maxY), Math.max(a.minZ, b.minZ), Math.min(a.maxZ, b.maxZ));
+            if (f != null) return f;
+        }
+        // Y
+        if (a.maxY + gap == b.minY || b.maxY + gap == a.minY) {
+            Face f = face(a.maxY + gap == b.minY ? Direction.UP : Direction.DOWN, a, b,
+                    Math.max(a.minX, b.minX), Math.min(a.maxX, b.maxX), Math.max(a.minZ, b.minZ), Math.min(a.maxZ, b.maxZ));
+            if (f != null) return f;
+        }
+        // Z
+        if (a.maxZ + gap == b.minZ || b.maxZ + gap == a.minZ) {
+            return face(a.maxZ + gap == b.minZ ? Direction.SOUTH : Direction.NORTH, a, b,
+                    Math.max(a.minX, b.minX), Math.min(a.maxX, b.maxX), Math.max(a.minY, b.minY), Math.min(a.maxY, b.maxY));
+        }
         return null;
     }
 
-    /**
-     * Проходные ячейки: внутренняя часть общих граней смежных кубов (для куба 5 — 3×3).
-     * В режиме DOUBLE_WALL — внутренние части обеих стоящих вплотную стен.
-     */
-    public static LongOpenHashSet passages(List<Cube> cubes, Adjacency mode) {
+    private static Face face(Direction dir, Area a, Area b, int u0, int u1, int v0, int v1) {
+        if (u1 - u0 + 1 <= 0 || v1 - v0 + 1 <= 0) return null;
+        return new Face(dir, a.wall(dir), b.wall(dir.getOpposite()), u0, u1, v0, v1);
+    }
+
+    /** Смежны ли области: общая грань не меньше room.minSharedFace × room.minSharedFace. */
+    public static boolean adjacent(Area a, Area b) {
+        Face f = sharedFace(a, b, mode());
+        int min = minFace();
+        return f != null && f.width() >= min && f.height() >= min;
+    }
+
+    /** Есть ли у области a общая стена со стороны dir с какой-либо из others. */
+    public static boolean isSharedWall(Area a, Direction dir, List<Area> others) {
+        for (Area o : others) {
+            if (o == a) continue;
+            Face f = sharedFace(a, o, mode());
+            if (f != null && f.dir() == dir && f.width() >= minFace() && f.height() >= minFace()) return true;
+        }
+        return false;
+    }
+
+    /** Проходные зоны: общие грани без периметра (в DOUBLE_WALL — в обеих стенах). */
+    public static LongOpenHashSet passages(List<Area> areas) {
+        Adjacency mode = mode();
+        int min = minFace();
         LongOpenHashSet out = new LongOpenHashSet();
-        for (int i = 0; i < cubes.size(); i++) {
-            for (int j = i + 1; j < cubes.size(); j++) {
-                Cube a = cubes.get(i);
-                Cube b = cubes.get(j);
-                Direction dir = adjacentDirection(a, b, mode);
-                if (dir == null) continue;
-                int inner = Math.min(a.half(), b.half()) - 1;
-                addFace(out, a, dir, inner);
-                if (mode == Adjacency.DOUBLE_WALL) addFace(out, b, dir.getOpposite(), inner);
+        for (int i = 0; i < areas.size(); i++) {
+            for (int j = i + 1; j < areas.size(); j++) {
+                Face f = sharedFace(areas.get(i), areas.get(j), mode);
+                if (f == null || f.width() < min || f.height() < min) continue;
+                addPlane(out, f, f.planeA());
+                if (mode == Adjacency.DOUBLE_WALL) addPlane(out, f, f.planeB());
             }
         }
         return out;
     }
 
-    private static void addFace(LongOpenHashSet out, Cube cube, Direction dir, int inner) {
-        BlockPos c = cube.center();
-        int plane = cube.half();
-        for (int u = -inner; u <= inner; u++) {
-            for (int v = -inner; v <= inner; v++) {
-                int x = c.getX(), y = c.getY(), z = c.getZ();
-                switch (dir.getAxis()) {
-                    case X -> { x += dir.getStepX() * plane; y += u; z += v; }
-                    case Y -> { y += dir.getStepY() * plane; x += u; z += v; }
-                    case Z -> { z += dir.getStepZ() * plane; x += u; y += v; }
-                }
-                out.add(BlockPos.asLong(x, y, z));
+    private static void addPlane(LongOpenHashSet out, Face f, int plane) {
+        for (int u = f.u0() + 1; u <= f.u1() - 1; u++) {
+            for (int v = f.v0() + 1; v <= f.v1() - 1; v++) {
+                out.add(switch (f.dir().getAxis()) {
+                    case X -> BlockPos.asLong(plane, u, v);
+                    case Y -> BlockPos.asLong(u, plane, v);
+                    case Z -> BlockPos.asLong(u, v, plane);
+                });
             }
         }
     }
 
-    /** Ожидаемая оболочка: оболочки всех кубов без проходных зон. Порядок стабильный (для подсветки). */
-    public static LongLinkedOpenHashSet expectedShell(List<Cube> cubes, Adjacency mode) {
-        LongOpenHashSet pass = passages(cubes, mode);
+    /** Ожидаемая оболочка (v3 1.5): объединение оболочек областей без проходных зон и без чужих внутренних объёмов. */
+    public static LongLinkedOpenHashSet expectedShell(List<Area> areas) {
+        LongOpenHashSet pass = passages(areas);
         LongLinkedOpenHashSet out = new LongLinkedOpenHashSet();
-        for (Cube cube : cubes) {
-            for (int x = cube.minX(); x <= cube.maxX(); x++) {
-                for (int y = cube.minY(); y <= cube.maxY(); y++) {
-                    for (int z = cube.minZ(); z <= cube.maxZ(); z++) {
-                        if (!cube.isShell(x, y, z)) continue;
+        for (Area a : areas) {
+            for (int x = a.minX; x <= a.maxX; x++) {
+                for (int y = a.minY; y <= a.maxY; y++) {
+                    for (int z = a.minZ; z <= a.maxZ; z++) {
+                        if (a.isInterior(x, y, z)) continue;
                         long key = BlockPos.asLong(x, y, z);
-                        if (pass.contains(key) || insideAnyInterior(cubes, x, y, z)) continue;
+                        if (pass.contains(key) || insideAnyInterior(areas, x, y, z)) continue;
                         out.add(key);
                     }
                 }
@@ -147,34 +127,67 @@ public final class BunkerGeometry {
         return out;
     }
 
-    private static boolean insideAnyInterior(List<Cube> cubes, int x, int y, int z) {
-        for (Cube c : cubes) if (c.isInterior(x, y, z)) return true;
+    private static boolean insideAnyInterior(List<Area> areas, int x, int y, int z) {
+        for (Area a : areas) if (a.isInterior(x, y, z)) return true;
         return false;
     }
 
-    /** Ограничивающий объём: объединение кубов плюс запас 1 блок. Возвращает {minX,minY,minZ,maxX,maxY,maxZ}. */
-    public static int[] bounds(List<Cube> cubes, int margin) {
+    /** Ограничивающий объём с запасом: {minX,minY,minZ,maxX,maxY,maxZ}. */
+    public static int[] bounds(List<Area> areas, int margin) {
         int[] b = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
-        for (Cube c : cubes) {
-            b[0] = Math.min(b[0], c.minX() - margin);
-            b[1] = Math.min(b[1], c.minY() - margin);
-            b[2] = Math.min(b[2], c.minZ() - margin);
-            b[3] = Math.max(b[3], c.maxX() + margin);
-            b[4] = Math.max(b[4], c.maxY() + margin);
-            b[5] = Math.max(b[5], c.maxZ() + margin);
+        for (Area a : areas) {
+            b[0] = Math.min(b[0], a.minX - margin);
+            b[1] = Math.min(b[1], a.minY - margin);
+            b[2] = Math.min(b[2], a.minZ - margin);
+            b[3] = Math.max(b[3], a.maxX + margin);
+            b[4] = Math.max(b[4], a.maxY + margin);
+            b[5] = Math.max(b[5], a.maxZ + margin);
         }
         return b;
     }
 
-    /** Центры допустимых новых комнат у каждой стороны каждого куба бункера (без проверки пересечений). */
-    public static List<BlockPos> candidateRoomCenters(List<Cube> cubes, Adjacency mode) {
-        List<BlockPos> out = new ArrayList<>();
-        int roomHalf = roomHalf();
-        for (Cube cube : cubes) {
-            int step = cube.half() + roomHalf + (mode == Adjacency.DOUBLE_WALL ? 1 : 0);
-            for (Direction d : Direction.values()) {
-                BlockPos p = cube.center().relative(d, step);
-                if (!out.contains(p)) out.add(p);
+    /** Все комнаты связаны с областью ядра цепочкой смежных областей (areas.get(0) — ядро). */
+    public static boolean connected(List<Area> areas) {
+        if (areas.size() <= 1) return true;
+        boolean[] seen = new boolean[areas.size()];
+        ArrayDeque<Integer> queue = new ArrayDeque<>();
+        seen[0] = true;
+        queue.add(0);
+        int count = 1;
+        while (!queue.isEmpty()) {
+            int i = queue.poll();
+            for (int j = 0; j < areas.size(); j++) {
+                if (seen[j] || !adjacent(areas.get(i), areas.get(j))) continue;
+                seen[j] = true;
+                count++;
+                queue.add(j);
+            }
+        }
+        return count == areas.size();
+    }
+
+    /** Пересечения с областями своего бункера допустимы только толщиной в одну стену. */
+    public static boolean overlapsOwn(Area a, List<Area> others) {
+        for (Area o : others) {
+            if (o == a) continue;
+            int t = a.intersectionThickness(o);
+            if (t == 0) continue;
+            if (mode() == Adjacency.SHARED_WALL && t == 1) continue;
+            return true;
+        }
+        return false;
+    }
+
+    /** Варианты области базового размера, в которых pos — допустимый якорь (v3 1.2, 1.4). */
+    public static List<Area> baseCandidates(BlockPos pos) {
+        List<Area> out = new ArrayList<>();
+        for (int dx = 0; dx <= 4; dx++) {
+            for (int dy = 0; dy <= 4; dy++) {
+                for (int dz = 0; dz <= 4; dz++) {
+                    int minX = pos.getX() - dx, minY = pos.getY() - dy, minZ = pos.getZ() - dz;
+                    Area a = new Area(pos, minX, minY, minZ, minX + 4, minY + 4, minZ + 4);
+                    if (a.isValidAnchor(pos)) out.add(a);
+                }
             }
         }
         return out;

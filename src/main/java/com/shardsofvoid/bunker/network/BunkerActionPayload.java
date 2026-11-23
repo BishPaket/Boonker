@@ -4,24 +4,28 @@ import com.shardsofvoid.bunker.BunkerMod;
 
 import io.netty.buffer.ByteBuf;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
-/** Клиент → сервер: кнопки интерфейса ядра и комнаты. Каждый пакет перепроверяется на сервере. */
-public record BunkerActionPayload(BlockPos pos, int action, BlockPos arg) implements CustomPacketPayload {
-    public static final int SHOW_BOUNDS = 0;
-    public static final int UPGRADE = 1;
-    public static final int UNLINK_ROOM = 2;
-    public static final int REFRESH = 3;
-
+/**
+ * Клиент → сервер: действие интерфейса ядра или комнаты. args.a — имя действия, остальное — его параметры.
+ * Каждый пакет перепроверяется на сервере, не больше 10 действий в секунду (v3, 10.3).
+ */
+public record BunkerActionPayload(BlockPos pos, CompoundTag args) implements CustomPacketPayload {
     public static final Type<BunkerActionPayload> TYPE = new Type<>(BunkerMod.id("bunker_action"));
 
     public static final StreamCodec<ByteBuf, BunkerActionPayload> STREAM_CODEC = StreamCodec.composite(
             BlockPos.STREAM_CODEC, BunkerActionPayload::pos,
-            ByteBufCodecs.VAR_INT, BunkerActionPayload::action,
-            BlockPos.STREAM_CODEC, BunkerActionPayload::arg,
+            ByteBufCodecs.COMPOUND_TAG, BunkerActionPayload::args,
             BunkerActionPayload::new);
+
+    public static BunkerActionPayload of(BlockPos pos, String action) {
+        CompoundTag t = new CompoundTag();
+        t.putString("a", action);
+        return new BunkerActionPayload(pos, t);
+    }
 
     @Override
     public Type<? extends CustomPacketPayload> type() {

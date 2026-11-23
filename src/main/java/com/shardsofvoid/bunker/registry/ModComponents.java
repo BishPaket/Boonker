@@ -47,6 +47,18 @@ public final class ModComponents {
                     .persistent(Codec.intRange(1, 3))
                     .networkSynchronized(ByteBufCodecs.VAR_INT));
 
+    /** v3 5.1–5.2: заряд энергоячейки и снятого аккумулятора, FE. */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> STORED_ENERGY =
+            COMPONENTS.registerComponentType("stored_energy", b -> b
+                    .persistent(Codec.intRange(0, Integer.MAX_VALUE))
+                    .networkSynchronized(ByteBufCodecs.VAR_INT));
+
+    /** v3 8.6: износ фильтра-поглотителя и водяного картриджа (сколько единиц ресурса израсходовано). */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> FILTER_WEAR =
+            COMPONENTS.registerComponentType("filter_wear", b -> b
+                    .persistent(Codec.intRange(0, Integer.MAX_VALUE))
+                    .networkSynchronized(ByteBufCodecs.VAR_INT));
+
     private ModComponents() {}
 
     public record LinkedCore(ResourceKey<Level> dimension, BlockPos pos, UUID bunkerId) {

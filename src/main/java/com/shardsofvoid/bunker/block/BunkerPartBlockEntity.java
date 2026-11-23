@@ -20,6 +20,8 @@ public class BunkerPartBlockEntity extends BlockEntity {
     private UUID owner;
     private String ownerName = "";
     private int level = 1;
+    /** v3 1.4: блок комнаты ждёт выбора варианта области. */
+    private boolean placing;
 
     public BunkerPartBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlocks.PART_BE.get(), pos, state);
@@ -53,6 +55,15 @@ public class BunkerPartBlockEntity extends BlockEntity {
         return ownerName;
     }
 
+    public boolean placing() {
+        return placing;
+    }
+
+    public void setPlacing(boolean placing) {
+        this.placing = placing;
+        setChanged();
+    }
+
     public int level() {
         return level;
     }
@@ -69,6 +80,7 @@ public class BunkerPartBlockEntity extends BlockEntity {
         if (owner != null) tag.putUUID("owner", owner);
         tag.putString("ownerName", ownerName);
         tag.putInt("level", level);
+        tag.putBoolean("placing", placing);
     }
 
     @Override
@@ -78,5 +90,6 @@ public class BunkerPartBlockEntity extends BlockEntity {
         owner = tag.hasUUID("owner") ? tag.getUUID("owner") : null;
         ownerName = tag.getString("ownerName");
         level = Math.max(1, Math.min(3, tag.contains("level") ? tag.getInt("level") : 1));
+        placing = tag.getBoolean("placing");
     }
 }

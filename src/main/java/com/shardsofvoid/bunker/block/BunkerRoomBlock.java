@@ -54,7 +54,9 @@ public class BunkerRoomBlock extends BunkerPartBlock {
             ItemStack drop = new ItemStack(ModItems.BUNKER_ROOM_BLOCK.get());
             int roomLevel = state.getValue(LEVEL);
             if (roomLevel > 1) drop.set(ModComponents.ROOM_LEVEL.get(), roomLevel);
-            Bunker b = BunkerManager.get(serverLevel).byRoom(pos);
+            BunkerManager m = BunkerManager.get(serverLevel);
+            Bunker b = m.byRoom(pos);
+            if (b == null) b = m.byPending(pos);
             if (b != null) drop.set(ModComponents.LINKED_CORE.get(), new LinkedCore(serverLevel.dimension(), b.core, b.id));
             Block.popResource(level, pos, drop);
         }

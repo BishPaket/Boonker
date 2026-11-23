@@ -1,0 +1,7 @@
+{
+  "replace": false,
+  "values": [
+    "bunker:bunker_door",
+    "bunker:bunker_hatch"
+  ]
+}

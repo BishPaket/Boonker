@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -11,11 +12,12 @@ import java.util.UUID;
 import org.jetbrains.annotations.Nullable;
 
 import com.shardsofvoid.bunker.BunkerMod;
+import com.shardsofvoid.bunker.block.BunkerPartBlock;
 import com.shardsofvoid.bunker.block.BunkerPartBlockEntity;
 import com.shardsofvoid.bunker.bunker.Bunker.State;
-import com.shardsofvoid.bunker.bunker.BunkerGeometry.Cube;
 import com.shardsofvoid.bunker.config.BunkerConfig;
-import com.shardsofvoid.bunker.config.BunkerConfig.Adjacency;
+import com.shardsofvoid.bunker.energy.BunkerMachineBlockEntity;
+import com.shardsofvoid.bunker.energy.EnergySystem;
 import com.shardsofvoid.bunker.item.BunkerCoreItem;
 import com.shardsofvoid.bunker.network.HighlightPayload;
 import com.shardsofvoid.bunker.registry.ModAttachments;
@@ -32,6 +34,7 @@ import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.objects.Object2LongLinkedOpenHashMap;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
@@ -47,14 +50,13 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
- * Бункеры одного измерения: данные, индексы (позиции ядер, комнат, наблюдаемой оболочки, чанков, зон)
- * и очередь проверок герметичности. Всё выполняется на серверном потоке.
+ * Бункеры одного измерения: данные, индексы (якоря, наблюдаемая оболочка, чанки, зоны, энергоблоки),
+ * очередь проверок герметичности, размещение и размеры областей. Всё выполняется на серверном потоке.
  */
 public final class BunkerManager {
     private static final Map<ResourceKey<Level>, BunkerManager> MANAGERS = new HashMap<>();
@@ -64,16 +66,25 @@ public final class BunkerManager {
 
     private final Long2ObjectOpenHashMap<Bunker> byCore = new Long2ObjectOpenHashMap<>();
     private final Long2ObjectOpenHashMap<Bunker> byRoom = new Long2ObjectOpenHashMap<>();
-    /** Позиции ожидаемой оболочки → бункер. Реакция на изменение блока без перебора бункеров. */
+    private final Long2ObjectOpenHashMap<Bunker> byPending = new Long2ObjectOpenHashMap<>();
+    /** Ожидаемая оболочка и проходы → бункер. */
     private final Long2ObjectOpenHashMap<Bunker> watched = new Long2ObjectOpenHashMap<>();
-    /** Чанки ограничивающего объёма → бункеры (для перепроверки при загрузке чанков). */
+    /** Чанки ограничивающего объёма → бункеры. */
     private final Long2ObjectOpenHashMap<List<Bunker>> byChunk = new Long2ObjectOpenHashMap<>();
-    /** Ячейки защитных зон → бункер. Проверка игрока за O(1). */
+    /** Ячейки заливки → бункер. */
     private final Long2ObjectOpenHashMap<Bunker> zoneIndex = new Long2ObjectOpenHashMap<>();
     private final Map<UUID, LongOpenHashSet> watchedKeys = new HashMap<>();
     private final Map<UUID, LongOpenHashSet> chunkKeys = new HashMap<>();
-    /** Очередь проверок: бункер → тик, не раньше которого его можно проверять. */
     private final Object2LongLinkedOpenHashMap<UUID> queue = new Object2LongLinkedOpenHashMap<>();
+
+    /** Энергоблоки мода в загруженных чанках (v3 3.1). */
+    private final Long2ObjectOpenHashMap<BunkerMachineBlockEntity> machines = new Long2ObjectOpenHashMap<>();
+    /** Кабельная сеть изменилась — пересчитать граф при следующем расчёте энергии. */
+    public boolean cablesDirty = true;
+    /** Кэш графа кабелей: бункер → энергоблоки, подключённые кабелем через энерговвод (v3 4.3). */
+    public final Map<UUID, LongOpenHashSet> cableMembers = new HashMap<>();
+    /** Бункеры, у которых сеть кабелей больше bunker.energy.maxCableNetwork. */
+    public final java.util.Set<UUID> cableTooBig = new java.util.HashSet<>();
 
     private BunkerManager(ServerLevel level) {
         this.level = level;
@@ -88,6 +99,11 @@ public final class BunkerManager {
 
     public static BunkerManager get(ServerLevel level) {
         return MANAGERS.computeIfAbsent(level.dimension(), k -> new BunkerManager(level));
+    }
+
+    @Nullable
+    public static BunkerManager getIfLoaded(ServerLevel level) {
+        return MANAGERS.get(level.dimension());
     }
 
     public static void unload(ServerLevel level) {
@@ -107,6 +123,10 @@ public final class BunkerManager {
         return level;
     }
 
+    public void markDirty() {
+        data.setDirty();
+    }
+
     @Nullable
     public Bunker byId(UUID id) {
         return data.bunkers.get(id);
@@ -123,8 +143,28 @@ public final class BunkerManager {
     }
 
     @Nullable
+    public Bunker byPending(BlockPos pos) {
+        return byPending.get(pos.asLong());
+    }
+
+    @Nullable
     public Bunker watchedAt(BlockPos pos) {
         return watched.get(pos.asLong());
+    }
+
+    /** Бункер, в область (включая оболочку) которого попадает позиция. */
+    @Nullable
+    public Bunker bunkerAt(BlockPos pos) {
+        List<Bunker> list = byChunk.get(ChunkPos.asLong(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ())));
+        if (list == null) return null;
+        for (Bunker b : list) {
+            for (Area a : b.areas()) if (a.contains(pos)) return b;
+        }
+        return null;
+    }
+
+    public boolean inZone(Bunker b, BlockPos pos) {
+        return zoneIndex.get(pos.asLong()) == b;
     }
 
     public record Located(ServerLevel level, Bunker bunker) {}
@@ -138,7 +178,6 @@ public final class BunkerManager {
         return null;
     }
 
-    /** Все бункеры игрока во всех измерениях, от старых к новым. */
     public static List<Located> bunkersOf(MinecraftServer server, UUID owner) {
         List<Located> out = new ArrayList<>();
         for (ServerLevel lvl : server.getAllLevels()) {
@@ -148,7 +187,6 @@ public final class BunkerManager {
         return out;
     }
 
-    /** Порядковый номер бункера среди бункеров владельца (1 — самый старый). */
     public static int ownershipRank(MinecraftServer server, Bunker bunker) {
         List<Located> list = bunkersOf(server, bunker.owner);
         for (int i = 0; i < list.size(); i++) if (list.get(i).bunker() == bunker) return i + 1;
@@ -157,10 +195,13 @@ public final class BunkerManager {
 
     // ================================================================ зона
 
-    /** Сведения о зоне, в которой находится ячейка: бонусы уровня куба (bunker_upgrades). */
-    public record ZoneInfo(Bunker bunker, double doseDecay, List<BunkerUpgrades.EffectDef> effectDefs) {
+    /**
+     * Сведения о ячейке защитного объёма. protectedHere = false — комната отключена или обесточена
+     * (v3 3.5): игрок в ней набирает дозу, HUD показывает «Комната обесточена».
+     */
+    public record ZoneInfo(Bunker bunker, Area area, boolean protectedHere, double doseDecay, List<BunkerUpgrades.EffectDef> effectDefs) {
         public List<MobEffectInstance> effects(int duration) {
-            if (effectDefs.isEmpty()) return List.of();
+            if (effectDefs.isEmpty() || !protectedHere) return List.of();
             List<MobEffectInstance> out = new ArrayList<>(effectDefs.size());
             for (BunkerUpgrades.EffectDef d : effectDefs) out.add(d.create(duration));
             return out;
@@ -173,16 +214,11 @@ public final class BunkerManager {
         if (m == null) return null;
         Bunker b = m.zoneIndex.get(pos.asLong());
         if (b == null || !b.isActive()) return null;
-        BunkerUpgrades.LevelDef def = BunkerUpgrades.core(b.level);
-        if (!BunkerGeometry.coreCube(b.core).contains(pos.getX(), pos.getY(), pos.getZ())) {
-            for (Map.Entry<BlockPos, Integer> room : b.rooms.entrySet()) {
-                if (BunkerGeometry.roomCube(room.getKey()).contains(pos.getX(), pos.getY(), pos.getZ())) {
-                    def = BunkerUpgrades.room(room.getValue());
-                    break;
-                }
-            }
-        }
-        return new ZoneInfo(b, def.doseDecay(), def.effects());
+        Area area = b.areaAt(pos.getX(), pos.getY(), pos.getZ());
+        if (area == null) area = b.coreArea;
+        BunkerUpgrades.LevelDef def = area == b.coreArea ? BunkerUpgrades.core(b.level) : BunkerUpgrades.room(area.level);
+        boolean on = b.isAreaOn(area);
+        return new ZoneInfo(b, area, on, on ? def.doseDecay() : 0, def.effects());
     }
 
     // ================================================================ индексы
@@ -191,15 +227,15 @@ public final class BunkerManager {
         unindex(b);
         byCore.put(b.core.asLong(), b);
         for (BlockPos room : b.rooms.keySet()) byRoom.put(room.asLong(), b);
+        for (BlockPos p : b.pendingRooms) byPending.put(p.asLong(), b);
 
-        List<Cube> cubes = BunkerGeometry.cubes(b);
-        LongOpenHashSet keys = new LongOpenHashSet(BunkerGeometry.expectedShell(cubes, BunkerConfig.ROOM_ADJACENCY.get()));
-        // проходные ячейки тоже наблюдаем: закрытие прохода блоком тега меняет картину
-        keys.addAll(BunkerGeometry.passages(cubes, BunkerConfig.ROOM_ADJACENCY.get()));
+        List<Area> areas = b.areas();
+        LongOpenHashSet keys = new LongOpenHashSet(BunkerGeometry.expectedShell(areas));
+        keys.addAll(BunkerGeometry.passages(areas));
         for (LongIterator it = keys.iterator(); it.hasNext(); ) watched.put(it.nextLong(), b);
         watchedKeys.put(b.id, keys);
 
-        int[] bb = BunkerGeometry.bounds(cubes, 1);
+        int[] bb = BunkerGeometry.bounds(areas, 1);
         LongOpenHashSet chunks = new LongOpenHashSet();
         for (int cx = SectionPos.blockToSectionCoord(bb[0]); cx <= SectionPos.blockToSectionCoord(bb[3]); cx++) {
             for (int cz = SectionPos.blockToSectionCoord(bb[2]); cz <= SectionPos.blockToSectionCoord(bb[5]); cz++) {
@@ -209,11 +245,13 @@ public final class BunkerManager {
             }
         }
         chunkKeys.put(b.id, chunks);
+        cablesDirty = true;
     }
 
     private void unindex(Bunker b) {
         byCore.remove(b.core.asLong(), b);
         byRoom.long2ObjectEntrySet().removeIf(e -> e.getValue() == b);
+        byPending.long2ObjectEntrySet().removeIf(e -> e.getValue() == b);
         LongOpenHashSet keys = watchedKeys.remove(b.id);
         if (keys != null) {
             for (LongIterator it = keys.iterator(); it.hasNext(); ) watched.remove(it.nextLong(), b);
@@ -241,9 +279,36 @@ public final class BunkerManager {
         }
     }
 
+    /** Структура бункера изменилась: пересобрать индексы, сохранить, перепроверить. */
+    public void structureChanged(Bunker b) {
+        index(b);
+        data.setDirty();
+        validateNow(b);
+    }
+
+    // ================================================================ энергоблоки
+
+    public void registerMachine(BunkerMachineBlockEntity be) {
+        machines.put(be.getBlockPos().asLong(), be);
+        cablesDirty = true;
+    }
+
+    public void unregisterMachine(BunkerMachineBlockEntity be) {
+        machines.remove(be.getBlockPos().asLong(), be);
+        cablesDirty = true;
+    }
+
+    public Collection<BunkerMachineBlockEntity> machines() {
+        return machines.values();
+    }
+
+    @Nullable
+    public BunkerMachineBlockEntity machineAt(BlockPos pos) {
+        return machines.get(pos.asLong());
+    }
+
     // ================================================================ очередь проверок
 
-    /** Поставить бункер в очередь. События склеиваются: один бункер — не чаще раза в 5 тиков. */
     public void schedule(Bunker b, int delay) {
         long now = level.getGameTime();
         long due = Math.max(now + Math.max(1, delay), b.lastValidated + 5);
@@ -258,7 +323,7 @@ public final class BunkerManager {
         schedule(b, 1);
     }
 
-    /** Тик измерения: очередь проверок, страховочный таймер, двери, частицы при нарушении герметичности. */
+    /** Тик измерения: проверки, страховочный таймер, двери, частицы, энергия и жизнеобеспечение. */
     public void tick() {
         long now = level.getGameTime();
         int interval = BunkerConfig.BUNKER_VALIDATION_INTERVAL.get();
@@ -280,20 +345,65 @@ public final class BunkerManager {
             Bunker b = data.bunkers.get(id);
             if (b != null) validateNow(b);
         }
+
+        // v3 3.1: энергия раз в bunker.energy.interval, бункеры разнесены по тикам
+        int energyInterval = BunkerConfig.ENERGY_INTERVAL.get();
+        if (cablesDirty && now % 5 == 0) EnergySystem.rebuildCables(this);
+        for (Bunker b : List.copyOf(data.bunkers.values())) {
+            if (Math.floorMod(now + b.id.getMostSignificantBits(), energyInterval) == 0 && level.isLoaded(b.core)) {
+                EnergySystem.tick(this, b, energyInterval);
+            }
+        }
+    }
+
+    /** Гермодвери: отметка времени открытия для шлюзового режима (v3 2.2). */
+    private void updateDoorTimers(Bunker b) {
+        long now = level.getGameTime();
+        for (Long2BooleanMap.Entry e : b.openables.long2BooleanEntrySet()) {
+            BlockPos pos = BlockPos.of(e.getLongKey());
+            if (!level.isLoaded(pos)) continue;
+            BlockState state = level.getBlockState(pos);
+            boolean open = state.hasProperty(BlockStateProperties.OPEN) && state.getValue(BlockStateProperties.OPEN);
+            if (open && state.is(ModMisc.AIRLOCKS)) b.doorOpenSince.putIfAbsent(e.getLongKey(), now);
+            else b.doorOpenSince.remove(e.getLongKey());
+        }
+    }
+
+    /** Гермодверь переключилась (вызывает сам блок): засечь время сразу, чтобы шлюз не «мигал». */
+    public void onAirlockToggled(BlockPos pos, boolean open) {
+        Bunker b = watchedAt(pos);
+        if (b == null) return;
+        if (open) b.doorOpenSince.putIfAbsent(pos.asLong(), level.getGameTime());
+        else b.doorOpenSince.remove(pos.asLong());
+        schedule(b, 2);
     }
 
     private void pollOpenables() {
+        long now = level.getGameTime();
+        long grace = BunkerConfig.DOOR_GRACE_SECONDS.get() * 20L;
         for (Bunker b : data.bunkers.values()) {
             if (b.openables.isEmpty() || queue.containsKey(b.id)) continue;
+            boolean changed = false;
             for (Long2BooleanMap.Entry e : b.openables.long2BooleanEntrySet()) {
                 BlockPos pos = BlockPos.of(e.getLongKey());
                 if (!level.isLoaded(pos)) continue;
                 BlockState state = level.getBlockState(pos);
-                if (!state.hasProperty(BlockStateProperties.OPEN) || state.getValue(BlockStateProperties.OPEN) != e.getBooleanValue()) {
-                    schedule(b);
+                boolean open = state.hasProperty(BlockStateProperties.OPEN) && state.getValue(BlockStateProperties.OPEN);
+                if (!state.hasProperty(BlockStateProperties.OPEN) || open != e.getBooleanValue()) {
+                    changed = true;
                     break;
                 }
             }
+            updateDoorTimers(b);
+            if (!changed && b.state == State.ACTIVE) {
+                for (long since : b.doorOpenSince.values()) {
+                    if (now - since >= grace) {
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+            if (changed) schedule(b);
         }
     }
 
@@ -307,7 +417,6 @@ public final class BunkerManager {
         }
     }
 
-    /** Изменение блока в мире (NeighborNotify и т. п.). */
     public void onBlockChanged(BlockPos pos) {
         Bunker b = watched.get(pos.asLong());
         if (b != null) schedule(b);
@@ -316,6 +425,7 @@ public final class BunkerManager {
     public void onChunkLoad(ChunkPos pos) {
         List<Bunker> list = byChunk.get(pos.toLong());
         if (list != null) for (Bunker b : list) schedule(b, 2);
+        cablesDirty = true;
     }
 
     /** Немедленная проверка: условия → оболочка → заливка → смена состояния. */
@@ -323,18 +433,19 @@ public final class BunkerManager {
         b.lastValidated = level.getGameTime();
         queue.removeLong(b.id);
 
-        // Самовосстановление: ядро или комнаты исчезли без события (правка мира, /setblock).
         if (level.isLoaded(b.core) && !level.getBlockState(b.core).is(ModBlocks.BUNKER_CORE.get())) {
             BunkerMod.LOGGER.warn("Ядро бункера {} на {} отсутствует — бункер удалён", b.id, b.core);
             removeBunker(b);
             return;
         }
-        boolean roomsChanged = b.rooms.keySet().removeIf(p -> level.isLoaded(p) && !level.getBlockState(p).is(ModBlocks.BUNKER_ROOM.get()));
-        if (roomsChanged) {
+        boolean changed = b.rooms.keySet().removeIf(p -> level.isLoaded(p) && !level.getBlockState(p).is(ModBlocks.BUNKER_ROOM.get()));
+        changed |= b.pendingRooms.removeIf(p -> level.isLoaded(p) && !level.getBlockState(p).is(ModBlocks.BUNKER_ROOM.get()));
+        if (changed) {
             index(b);
             data.setDirty();
         }
 
+        updateDoorTimers(b);
         List<ActivationConditions.Result> conditions = ActivationConditions.evaluate(level, b);
         b.lastConditions = conditions;
         BunkerValidator.Result r = BunkerValidator.validate(level, b);
@@ -344,17 +455,15 @@ public final class BunkerManager {
         b.missing.addAll(r.missing());
         b.openables.clear();
         b.openables.putAll(r.openables());
-        if (r.outcome() == BunkerValidator.Outcome.UNLOADED) {
-            return; // проверка откладывается, состояние не меняется
-        }
+        updateDoorTimers(b);
+        if (r.outcome() == BunkerValidator.Outcome.UNLOADED) return;
         b.lastOutcome = r.outcome();
         b.sealed = r.outcome() == BunkerValidator.Outcome.SEALED;
 
         State old = b.state;
-        boolean conditionsOk = ActivationConditions.allOk(conditions);
         State next;
         LongOpenHashSet zone = null;
-        if (!conditionsOk) {
+        if (!ActivationConditions.allOk(conditions)) {
             next = State.NOT_READY;
         } else if (b.sealed && r.complete()) {
             next = State.ACTIVE;
@@ -368,15 +477,22 @@ public final class BunkerManager {
         boolean wasActive = old == State.ACTIVE || b.awaitingRestore;
         if (next == State.ACTIVE) {
             b.breached = false;
+            b.doorBreach = false;
             if (old != State.ACTIVE && !b.awaitingRestore) notifyOwner(b, Component.translatable("message.bunker.activated")
                     .withStyle(ChatFormatting.GREEN), false);
         } else if (wasActive) {
             b.breached = true;
-            if (!b.awaitingRestore) notifyOwner(b, Component.translatable("message.bunker.breached",
-                    b.core.getX(), b.core.getY(), b.core.getZ()).withStyle(ChatFormatting.RED), true);
+            long grace = BunkerConfig.DOOR_GRACE_SECONDS.get() * 20L;
+            boolean door = false;
+            for (long since : b.doorOpenSince.values()) if (level.getGameTime() - since >= grace) door = true;
+            b.doorBreach = door;
+            if (!b.awaitingRestore) {
+                notifyOwner(b, door
+                        ? Component.translatable("message.bunker.door_open", b.core.getX(), b.core.getY(), b.core.getZ()).withStyle(ChatFormatting.RED)
+                        : Component.translatable("message.bunker.breached", b.core.getX(), b.core.getY(), b.core.getZ()).withStyle(ChatFormatting.RED), true);
+            }
         }
         if (old == State.NOT_READY && next != State.NOT_READY) {
-            // условия выполнены — подсветить границы у владельца, если он рядом
             ServerPlayer owner = level.getServer().getPlayerList().getPlayer(b.owner);
             if (owner != null && owner.level() == level && owner.distanceToSqr(b.core.getX(), b.core.getY(), b.core.getZ()) < 64 * 64) {
                 sendHighlight(owner, b, false);
@@ -386,16 +502,28 @@ public final class BunkerManager {
         if (old != next) data.setDirty();
     }
 
-    private void notifyOwner(Bunker b, Component message, boolean alarm) {
+    public void notifyOwner(Bunker b, Component message, boolean alarm) {
         ServerPlayer owner = level.getServer().getPlayerList().getPlayer(b.owner);
         if (owner == null) return;
         owner.sendSystemMessage(message);
         if (alarm) owner.level().playSound(null, owner.getX(), owner.getY(), owner.getZ(), ModMisc.BUNKER_BREACH.get(), SoundSource.BLOCKS, 1.0F, 1.0F);
     }
 
+    // ================================================================ пересечения
+
+    /** Чужой бункер, с областями которого пересекается area. */
+    @Nullable
+    public Bunker foreignOverlap(Bunker self, Area area) {
+        for (Bunker other : data.bunkers.values()) {
+            if (other == self) continue;
+            for (Area a : other.areas()) if (a.intersects(area)) return other;
+        }
+        return null;
+    }
+
     // ================================================================ ядро
 
-    public void onCorePlaced(BlockPos pos, @Nullable LivingEntity placer, ItemStack stack) {
+    public void onCorePlaced(BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
         if (byCore(pos) != null) return;
         CoreOwner owner = stack.get(ModComponents.CORE_OWNER.get());
         UUID ownerId;
@@ -409,8 +537,10 @@ public final class BunkerManager {
         } else {
             return;
         }
-        Bunker b = new Bunker(UUID.randomUUID(), ownerId, ownerName, pos);
+        Direction facing = state.hasProperty(BunkerPartBlock.FACING) ? state.getValue(BunkerPartBlock.FACING) : Direction.UP;
+        Bunker b = new Bunker(UUID.randomUUID(), ownerId, ownerName, pos, Area.inWall(pos, facing));
         b.createdAt = level.getGameTime();
+        b.doorsLocked = BunkerConfig.DOOR_LOCKED_BY_DEFAULT.get();
         data.bunkers.put(b.id, b);
         data.setDirty();
         index(b);
@@ -428,23 +558,24 @@ public final class BunkerManager {
         if (b != null) removeBunker(b);
     }
 
-    /** Удаление бункера: зона исчезает, комнаты отвязываются (блоки остаются, но не работают). */
     public void removeBunker(Bunker b) {
         setZone(b, null);
         unindex(b);
         queue.removeLong(b.id);
-        for (BlockPos room : b.rooms.keySet()) {
+        List<BlockPos> rooms = new ArrayList<>(b.rooms.keySet());
+        rooms.addAll(b.pendingRooms);
+        for (BlockPos room : rooms) {
             if (level.isLoaded(room) && level.getBlockEntity(room) instanceof BunkerPartBlockEntity be) be.unbind();
         }
         data.bunkers.remove(b.id);
         data.setDirty();
+        cablesDirty = true;
         ServerPlayer owner = level.getServer().getPlayerList().getPlayer(b.owner);
         if (owner != null && b.id.toString().equals(owner.getData(ModAttachments.BUNKER_ID))) {
             owner.setData(ModAttachments.BUNKER_ID, "");
         }
     }
 
-    /** Предмет ядра возвращается владельцу (раздел 4.6). */
     public void returnCoreItem(Bunker b) {
         ItemStack stack = BunkerCoreItem.createFor(b.owner, b.ownerName);
         ServerPlayer owner = level.getServer().getPlayerList().getPlayer(b.owner);
@@ -462,114 +593,221 @@ public final class BunkerManager {
         level.addFreshEntity(entity);
     }
 
-    // ================================================================ комнаты
+    // ================================================================ размещение комнат (v3 1.4)
 
-    /** Проверка установки комнаты (раздел 6.3). null — можно ставить, иначе причина отказа. */
-    @Nullable
-    public static Component checkRoomPlacement(ServerPlayer player, ServerLevel level, BlockPos pos, LinkedCore link) {
+    /** Результат проверки установки: ошибка или список вариантов области. */
+    public record Placement(@Nullable Component error, List<Area> variants) {}
+
+    public static Placement checkRoomPlacement(ServerPlayer player, ServerLevel level, BlockPos pos, LinkedCore link) {
         if (!level.dimension().equals(link.dimension())) {
-            return Component.translatable("message.bunker.room.other_dimension").withStyle(ChatFormatting.RED);
+            return new Placement(Component.translatable("message.bunker.room.other_dimension").withStyle(ChatFormatting.RED), List.of());
         }
         BunkerManager m = get(level);
         Bunker b = m.byId(link.bunkerId());
         if (b == null || !b.core.equals(link.pos())) {
-            return Component.translatable("message.bunker.room.core_missing").withStyle(ChatFormatting.RED);
+            return new Placement(Component.translatable("message.bunker.room.core_missing").withStyle(ChatFormatting.RED), List.of());
         }
         if (!b.owner.equals(player.getUUID()) && !player.hasPermissions(2)) {
-            return Component.translatable("message.bunker.room.not_owner").withStyle(ChatFormatting.RED);
+            return new Placement(Component.translatable("message.bunker.room.not_owner").withStyle(ChatFormatting.RED), List.of());
         }
         int max = BunkerUpgrades.maxRooms(b.level);
         if (b.rooms.size() >= max) {
-            return Component.translatable("message.bunker.room.limit", b.rooms.size(), max).withStyle(ChatFormatting.RED);
+            return new Placement(Component.translatable("message.bunker.room.limit", b.rooms.size(), max).withStyle(ChatFormatting.RED), List.of());
         }
-        return m.checkCube(b, pos);
+        List<Area> variants = m.roomVariants(b, pos);
+        if (variants.isEmpty()) {
+            return new Placement(Component.translatable("message.bunker.room.no_variant").withStyle(ChatFormatting.RED), List.of());
+        }
+        return new Placement(null, variants);
     }
 
-    @Nullable
-    private Component checkCube(Bunker b, BlockPos pos) {
-        Adjacency mode = BunkerConfig.ROOM_ADJACENCY.get();
-        Cube cube = BunkerGeometry.roomCube(pos);
-        List<Cube> own = BunkerGeometry.cubes(b);
-        boolean adjacent = false;
-        for (Cube c : own) {
-            if (BunkerGeometry.adjacentDirection(c, cube, mode) != null) {
-                adjacent = true;
-                break;
-            }
-        }
-        if (!adjacent) return Component.translatable("message.bunker.room.not_adjacent").withStyle(ChatFormatting.RED);
-        for (Cube c : own) {
-            int t = c.minIntersectionThickness(cube);
-            if (t == 0) continue;
-            if (mode == Adjacency.SHARED_WALL && t == 1) continue; // общая стена или ребро
-            return Component.translatable("message.bunker.room.overlap").withStyle(ChatFormatting.RED);
-        }
-        for (Bunker other : data.bunkers.values()) {
-            if (other == b) continue;
-            for (Cube c : BunkerGeometry.cubes(other)) {
-                if (c.intersects(cube)) {
-                    return Component.translatable("message.bunker.room.overlap_foreign", other.ownerName).withStyle(ChatFormatting.RED);
+    /** Варианты области 3×3×3 для блока в pos: примыкают к области бункера и ни с чем не пересекаются, кроме общей стены. */
+    public List<Area> roomVariants(Bunker b, BlockPos pos) {
+        List<Area> own = b.areas();
+        List<Area> out = new ArrayList<>();
+        for (Area cand : BunkerGeometry.baseCandidates(pos)) {
+            boolean adjacent = false;
+            for (Area a : own) {
+                if (BunkerGeometry.adjacent(a, cand)) {
+                    adjacent = true;
+                    break;
                 }
             }
-        }
-        return null;
-    }
-
-    /** Допустимые центры новых комнат у каждой стороны кубов бункера. */
-    public List<BlockPos> allowedRoomCenters(Bunker b) {
-        List<BlockPos> out = new ArrayList<>();
-        if (b.rooms.size() >= BunkerUpgrades.maxRooms(b.level)) return out;
-        for (BlockPos p : BunkerGeometry.candidateRoomCenters(BunkerGeometry.cubes(b), BunkerConfig.ROOM_ADJACENCY.get())) {
-            if (checkCube(b, p) == null) out.add(p);
-            if (out.size() >= HighlightPayload.MAX_MARKERS) break;
+            if (!adjacent || BunkerGeometry.overlapsOwn(cand, own) || foreignOverlap(b, cand) != null) continue;
+            boolean anchorConflict = false;
+            for (Area a : own) if (cand.isInterior(a.anchor.getX(), a.anchor.getY(), a.anchor.getZ())) anchorConflict = true;
+            if (anchorConflict) continue;
+            out.add(cand);
         }
         return out;
     }
 
-    public static void sendAllowedRoomHighlight(ServerPlayer player, LinkedCore link) {
-        ServerLevel level = player.serverLevel();
-        if (!level.dimension().equals(link.dimension())) return;
-        BunkerManager m = get(level);
-        Bunker b = m.byId(link.bunkerId());
-        if (b == null) return;
-        PacketDistributor.sendToPlayer(player, new HighlightPayload(boxes(b), List.of(), m.allowedRoomCenters(b),
-                BunkerConfig.BUNKER_HIGHLIGHT_SECONDS.get() * 20));
-    }
-
+    /** Блок комнаты встал: один вариант — комната подключается, несколько — «Размещение». */
     public void onRoomPlaced(BlockPos pos, @Nullable LivingEntity placer, ItemStack stack) {
         LinkedCore link = stack.get(ModComponents.LINKED_CORE.get());
-        if (link == null || byRoom(pos) != null) return;
+        if (link == null || byRoom(pos) != null || byPending(pos) != null) return;
         Bunker b = byId(link.bunkerId());
         if (b == null) return;
         Integer lvl = stack.get(ModComponents.ROOM_LEVEL.get());
         int roomLevel = lvl == null ? 1 : lvl;
-        b.rooms.put(pos.immutable(), roomLevel);
-        data.setDirty();
-        index(b);
-        BlockState state = level.getBlockState(pos);
-        if (state.hasProperty(com.shardsofvoid.bunker.block.BunkerPartBlock.LEVEL)) {
-            level.setBlock(pos, state.setValue(com.shardsofvoid.bunker.block.BunkerPartBlock.LEVEL, roomLevel), 3);
+        List<Area> variants = roomVariants(b, pos);
+        if (level.getBlockEntity(pos) instanceof BunkerPartBlockEntity be) {
+            be.bind(b.id, b.owner, b.ownerName);
+            be.setLevel(roomLevel);
         }
-        if (level.getBlockEntity(pos) instanceof BunkerPartBlockEntity be) be.bind(b.id, b.owner, b.ownerName);
-        if (placer instanceof ServerPlayer sp) {
-            sp.displayClientMessage(Component.translatable("message.bunker.room.placed", b.rooms.size(),
+        if (variants.size() == 1) {
+            attachRoom(b, variants.get(0), roomLevel, placer instanceof ServerPlayer sp ? sp : null);
+        } else {
+            b.pendingRooms.add(pos.immutable());
+            if (level.getBlockEntity(pos) instanceof BunkerPartBlockEntity be) be.setPlacing(true);
+            index(b);
+            data.setDirty();
+            if (placer instanceof ServerPlayer sp) {
+                sp.displayClientMessage(Component.translatable("message.bunker.room.choose", variants.size()).withStyle(ChatFormatting.YELLOW), true);
+                BunkerActions.openScreen(sp, pos);
+            }
+        }
+    }
+
+    private void attachRoom(Bunker b, Area area, int roomLevel, @Nullable ServerPlayer player) {
+        area.level = roomLevel;
+        b.rooms.put(area.anchor, area);
+        b.pendingRooms.remove(area.anchor);
+        if (level.getBlockEntity(area.anchor) instanceof BunkerPartBlockEntity be) be.setPlacing(false);
+        BlockState state = level.getBlockState(area.anchor);
+        if (state.hasProperty(BunkerPartBlock.LEVEL)) level.setBlock(area.anchor, state.setValue(BunkerPartBlock.LEVEL, roomLevel), 3);
+        if (player != null) {
+            player.displayClientMessage(Component.translatable("message.bunker.room.placed", b.rooms.size(),
                     BunkerUpgrades.maxRooms(b.level)).withStyle(ChatFormatting.GREEN), true);
         }
-        validateNow(b);
+        structureChanged(b);
+    }
+
+    /** Подтвердить вариант размещения. */
+    @Nullable
+    public Component confirmPlacement(Bunker b, BlockPos pos, int variant, ServerPlayer player) {
+        if (!b.pendingRooms.contains(pos)) return Component.translatable("message.bunker.room.not_pending");
+        int max = BunkerUpgrades.maxRooms(b.level);
+        if (b.rooms.size() >= max) return Component.translatable("message.bunker.room.limit", b.rooms.size(), max);
+        List<Area> variants = roomVariants(b, pos);
+        if (variant < 0 || variant >= variants.size()) return Component.translatable("message.bunker.room.no_variant");
+        int lvl = level.getBlockEntity(pos) instanceof BunkerPartBlockEntity be ? be.level() : 1;
+        attachRoom(b, variants.get(variant), lvl, player);
+        return null;
     }
 
     public void onRoomRemoved(BlockPos pos) {
         Bunker b = byRoom(pos);
-        if (b == null) return;
-        unlinkRoom(b, pos);
+        if (b != null) {
+            unlinkRoom(b, pos);
+            return;
+        }
+        b = byPending(pos);
+        if (b != null) {
+            b.pendingRooms.remove(pos);
+            index(b);
+            data.setDirty();
+        }
     }
 
     public void unlinkRoom(Bunker b, BlockPos pos) {
         if (b.rooms.remove(pos) == null) return;
         if (level.isLoaded(pos) && level.getBlockEntity(pos) instanceof BunkerPartBlockEntity be) be.unbind();
+        structureChanged(b);
+    }
+
+    // ================================================================ размер области (v3 1.3, 1.6)
+
+    public static int expansionBudget(Bunker b, Area a) {
+        return a == b.coreArea ? BunkerUpgrades.core(b.level).expansion() : BunkerUpgrades.room(a.level).expansion();
+    }
+
+    /**
+     * Применить новые границы области. Проверки v3 1.6: бюджет и предел по оси, нет пересечений,
+     * общие стены на месте, комнаты связаны с ядром, якорь в допустимой позиции; сдвиг ядра — только без комнат.
+     * Возвращает причину отказа или null.
+     */
+    @Nullable
+    public Component checkBounds(Bunker b, Area area, int[] nb) {
+        Area test = area.copy();
+        test.setBounds(nb);
+        int maxH = BunkerConfig.AREA_MAX_HORIZONTAL.get();
+        int maxV = BunkerConfig.AREA_MAX_VERTICAL.get();
+        if (test.innerX() < Area.BASE_INNER || test.innerY() < Area.BASE_INNER || test.innerZ() < Area.BASE_INNER) {
+            return Component.translatable("message.bunker.size.too_small");
+        }
+        if (test.innerX() > maxH || test.innerZ() > maxH || test.innerY() > maxV) {
+            return Component.translatable("message.bunker.size.axis_limit", maxH, maxV);
+        }
+        int budget = expansionBudget(b, area);
+        if (test.expansionUsed() > budget) {
+            return Component.translatable("message.bunker.size.budget", test.expansionUsed(), budget);
+        }
+        if (!test.isValidAnchor(area.anchor)) return Component.translatable("message.bunker.size.anchor");
+        boolean moved = !test.sameBounds(area) && test.sameSize(area);
+        if (area == b.coreArea && moved && !b.rooms.isEmpty()) return Component.translatable("message.bunker.size.shift_rooms");
+
+        List<Area> others = new ArrayList<>(b.areas());
+        others.remove(area);
+        for (Direction d : Direction.values()) {
+            if (test.wall(d) != area.wall(d) && BunkerGeometry.isSharedWall(area, d, others)) {
+                return Component.translatable("message.bunker.size.shared_wall");
+            }
+        }
+        if (BunkerGeometry.overlapsOwn(test, others)) return Component.translatable("message.bunker.size.overlap");
+        for (Area o : others) {
+            if (test.isInterior(o.anchor.getX(), o.anchor.getY(), o.anchor.getZ())) return Component.translatable("message.bunker.size.overlap");
+        }
+        if (foreignOverlap(b, test) != null) return Component.translatable("message.bunker.size.foreign");
+        List<Area> all = new ArrayList<>();
+        for (Area a : b.areas()) all.add(a == area ? test : a);
+        if (!BunkerGeometry.connected(all)) return Component.translatable("message.bunker.size.disconnected");
+        return null;
+    }
+
+    @Nullable
+    public Component applyBounds(Bunker b, Area area, int[] nb) {
+        Component error = checkBounds(b, area, nb);
+        if (error != null) return error;
+        area.setBounds(nb);
+        structureChanged(b);
+        return null;
+    }
+
+    // ================================================================ комнаты: имя, порядок, включение
+
+    public static final int MAX_NAME = 24;
+
+    /** v3 6.3: до 24 символов, без кодов форматирования. */
+    public static String sanitizeName(String raw) {
+        if (raw == null) return "";
+        String s = raw.replace("§", "").replaceAll("\\p{Cntrl}", "").trim();
+        if (s.length() > MAX_NAME) s = s.substring(0, MAX_NAME);
+        return s;
+    }
+
+    public void moveRoom(Bunker b, BlockPos pos, boolean up) {
+        List<Map.Entry<BlockPos, Area>> list = new ArrayList<>(b.rooms.entrySet());
+        int i = -1;
+        for (int k = 0; k < list.size(); k++) if (list.get(k).getKey().equals(pos)) i = k;
+        int j = up ? i - 1 : i + 1;
+        if (i < 0 || j < 0 || j >= list.size()) return;
+        Map.Entry<BlockPos, Area> tmp = list.get(i);
+        list.set(i, list.get(j));
+        list.set(j, tmp);
+        b.rooms.clear();
+        for (Map.Entry<BlockPos, Area> e : list) b.rooms.put(e.getKey(), e.getValue());
         data.setDirty();
-        index(b);
-        validateNow(b);
+    }
+
+    /** Игроки, чьи глаза в данной области бункера. */
+    public int playersIn(Bunker b, Area a) {
+        int n = 0;
+        for (ServerPlayer p : level.players()) {
+            BlockPos eye = BlockPos.containing(p.getX(), p.getEyeY(), p.getZ());
+            if (a.contains(eye) && inZone(b, eye)) n++;
+        }
+        return n;
     }
 
     // ================================================================ уровни
@@ -581,44 +819,56 @@ public final class BunkerManager {
     }
 
     public void setRoomLevel(Bunker b, BlockPos room, int lvl) {
-        if (!b.rooms.containsKey(room)) return;
-        int v = Math.max(1, Math.min(3, lvl));
-        b.rooms.put(room, v);
-        updateLevelProperty(room, v);
+        Area a = b.rooms.get(room);
+        if (a == null) return;
+        a.level = Math.max(1, Math.min(3, lvl));
+        updateLevelProperty(room, a.level);
         data.setDirty();
     }
 
     private void updateLevelProperty(BlockPos pos, int lvl) {
         if (!level.isLoaded(pos)) return;
         BlockState state = level.getBlockState(pos);
-        if (state.hasProperty(com.shardsofvoid.bunker.block.BunkerPartBlock.LEVEL)) {
-            level.setBlock(pos, state.setValue(com.shardsofvoid.bunker.block.BunkerPartBlock.LEVEL, lvl), 3);
-        }
-        BlockEntity be = level.getBlockEntity(pos);
-        if (be instanceof BunkerPartBlockEntity part) part.setLevel(lvl);
-    }
-
-    public void markDirty() {
-        data.setDirty();
+        if (state.hasProperty(BunkerPartBlock.LEVEL)) level.setBlock(pos, state.setValue(BunkerPartBlock.LEVEL, lvl), 3);
+        if (level.getBlockEntity(pos) instanceof BunkerPartBlockEntity part) part.setLevel(lvl);
     }
 
     // ================================================================ подсветка
 
-    public static List<BlockPos> boxes(Bunker b) {
+    public static List<BlockPos> boxes(List<Area> areas) {
         List<BlockPos> out = new ArrayList<>();
-        for (Cube c : BunkerGeometry.cubes(b)) {
-            out.add(new BlockPos(c.minX(), c.minY(), c.minZ()));
-            out.add(new BlockPos(c.maxX(), c.maxY(), c.maxZ()));
-            if (out.size() >= 64) break;
+        for (Area a : areas) {
+            if (out.size() + 2 > 64) break;
+            out.add(new BlockPos(a.minX, a.minY, a.minZ));
+            out.add(new BlockPos(a.maxX, a.maxY, a.maxZ));
         }
         return out;
     }
 
-    /** Подсветка у игрока: границы кубов; withMissing — плюс до 64 недостающих блоков и допустимые комнаты. */
     public void sendHighlight(ServerPlayer player, Bunker b, boolean withMissing) {
         List<BlockPos> missing = withMissing ? List.copyOf(b.missing) : List.of();
-        List<BlockPos> allowed = withMissing && b.state == State.ACTIVE ? allowedRoomCenters(b) : List.of();
-        PacketDistributor.sendToPlayer(player, new HighlightPayload(boxes(b), missing, allowed,
+        PacketDistributor.sendToPlayer(player, new HighlightPayload(boxes(b.areas()), missing, List.of(),
                 BunkerConfig.BUNKER_HIGHLIGHT_SECONDS.get() * 20));
+    }
+
+    /** Подсветка вариантов/предпросмотра: рамки областей бункера плюс выделенные рамки кандидатов. */
+    public void sendPreview(ServerPlayer player, Bunker b, List<Area> preview) {
+        List<Area> areas = new ArrayList<>(preview);
+        areas.addAll(b.areas());
+        List<BlockPos> markers = new ArrayList<>();
+        for (Area a : preview) {
+            if (markers.size() >= HighlightPayload.MAX_MARKERS) break;
+            markers.add(a.anchor);
+        }
+        PacketDistributor.sendToPlayer(player, new HighlightPayload(boxes(areas), List.of(), markers,
+                BunkerConfig.BUNKER_HIGHLIGHT_SECONDS.get() * 20));
+    }
+
+    /** Отладка и команды: удалить запись о блоке, который больше не стоит в мире. */
+    public void forgetPending(Bunker b) {
+        for (Iterator<BlockPos> it = b.pendingRooms.iterator(); it.hasNext(); ) {
+            BlockPos p = it.next();
+            if (level.isLoaded(p) && !level.getBlockState(p).is(ModBlocks.BUNKER_ROOM.get())) it.remove();
+        }
     }
 }

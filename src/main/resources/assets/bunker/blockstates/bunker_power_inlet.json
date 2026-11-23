@@ -1,0 +1,73 @@
+{
+  "variants": {
+    "facing=north,indicator=idle": {
+      "model": "bunker:block/bunker_power_inlet_idle"
+    },
+    "facing=east,indicator=idle": {
+      "model": "bunker:block/bunker_power_inlet_idle",
+      "y": 90
+    },
+    "facing=south,indicator=idle": {
+      "model": "bunker:block/bunker_power_inlet_idle",
+      "y": 180
+    },
+    "facing=west,indicator=idle": {
+      "model": "bunker:block/bunker_power_inlet_idle",
+      "y": 270
+    },
+    "facing=up,indicator=idle": {
+      "model": "bunker:block/bunker_power_inlet_idle",
+      "x": 270
+    },
+    "facing=down,indicator=idle": {
+      "model": "bunker:block/bunker_power_inlet_idle",
+      "x": 90
+    },
+    "facing=north,indicator=on": {
+      "model": "bunker:block/bunker_power_inlet_on"
+    },
+    "facing=east,indicator=on": {
+      "model": "bunker:block/bunker_power_inlet_on",
+      "y": 90
+    },
+    "facing=south,indicator=on": {
+      "model": "bunker:block/bunker_power_inlet_on",
+      "y": 180
+    },
+    "facing=west,indicator=on": {
+      "model": "bunker:block/bunker_power_inlet_on",
+      "y": 270
+    },
+    "facing=up,indicator=on": {
+      "model": "bunker:block/bunker_power_inlet_on",
+      "x": 270
+    },
+    "facing=down,indicator=on": {
+      "model": "bunker:block/bunker_power_inlet_on",
+      "x": 90
+    },
+    "facing=north,indicator=excess": {
+      "model": "bunker:block/bunker_power_inlet_excess"
+    },
+    "facing=east,indicator=excess": {
+      "model": "bunker:block/bunker_power_inlet_excess",
+      "y": 90
+    },
+    "facing=south,indicator=excess": {
+      "model": "bunker:block/bunker_power_inlet_excess",
+      "y": 180
+    },
+    "facing=west,indicator=excess": {
+      "model": "bunker:block/bunker_power_inlet_excess",
+      "y": 270
+    },
+    "facing=up,indicator=excess": {
+      "model": "bunker:block/bunker_power_inlet_excess",
+      "x": 270
+    },
+    "facing=down,indicator=excess": {
+      "model": "bunker:block/bunker_power_inlet_excess",
+      "x": 90
+    }
+  }
+}

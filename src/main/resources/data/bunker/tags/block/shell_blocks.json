@@ -1,6 +1,12 @@
 {
   "replace": false,
   "values": [
-    "bunker:bunker_metal"
+    "bunker:bunker_metal",
+    "bunker:bunker_core",
+    "bunker:bunker_room",
+    "bunker:bunker_door",
+    "bunker:bunker_hatch",
+    "bunker:bunker_power_inlet",
+    "bunker:air_filter_unit"
   ]
 }

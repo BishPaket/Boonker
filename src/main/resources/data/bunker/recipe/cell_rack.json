@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "MCM",
+    "KTK",
+    "MCM"
+  ],
+  "key": {
+    "M": {
+      "item": "bunker:bunker_metal"
+    },
+    "C": {
+      "item": "minecraft:copper_ingot"
+    },
+    "K": {
+      "item": "bunker:power_cable"
+    },
+    "T": {
+      "item": "minecraft:comparator"
+    }
+  },
+  "result": {
+    "id": "bunker:cell_rack",
+    "count": 1
+  }
+}

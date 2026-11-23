@@ -1,0 +1,9 @@
+{
+  "parent": "minecraft:block/orientable_with_bottom",
+  "textures": {
+    "front": "bunker:block/bunker_battery_front_0",
+    "side": "bunker:block/machine_side",
+    "top": "bunker:block/machine_top",
+    "bottom": "bunker:block/machine_top"
+  }
+}

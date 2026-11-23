@@ -5,7 +5,13 @@ import com.shardsofvoid.bunker.network.HighlightPayload;
 import com.shardsofvoid.bunker.network.RadiationSyncPayload;
 import com.shardsofvoid.bunker.radiation.RadiationSource;
 
+import com.shardsofvoid.bunker.menu.MachineMenu;
+import com.shardsofvoid.bunker.network.MachineDataPayload;
+
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
 /** Обработка пакетов на клиенте (вызывается на главном потоке клиента). */
 public final class ClientPayloadHandler {
@@ -18,6 +24,35 @@ public final class ClientPayloadHandler {
         ClientState.rate = p.rate();
         ClientState.source = RadiationSource.byId(p.source());
         ClientState.hasData = true;
+        ClientState.air = p.air();
+        ClientState.water = p.water();
+        ClientState.unpowered = p.unpowered();
+        if (p.areaIndex() != ClientState.areaIndex || !p.areaName().equals(ClientState.areaName)) {
+            boolean moved = p.areaIndex() != ClientState.areaIndex;
+            ClientState.areaIndex = p.areaIndex();
+            ClientState.areaName = p.areaName();
+            Minecraft mc = Minecraft.getInstance();
+            if (moved && p.areaIndex() >= 0 && mc.player != null) {
+                mc.player.displayClientMessage(areaTitle(p.areaIndex(), p.areaName(), p.unpowered()), true);
+            }
+        }
+    }
+
+    /** Имя области: своё или по умолчанию («Центральная», «Комната N»). */
+    public static Component areaTitle(int index, String name, boolean unpowered) {
+        MutableComponent c = name.isEmpty()
+                ? (index == 0 ? Component.translatable("gui.bunker.area.core") : Component.translatable("gui.bunker.area.room", index))
+                : Component.literal(name);
+        c = c.withStyle(ChatFormatting.AQUA);
+        if (unpowered) c.append(Component.literal(" — ").append(Component.translatable("hud.bunker.unpowered")).withStyle(ChatFormatting.RED));
+        return c;
+    }
+
+    public static void handleMachineData(MachineDataPayload p) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null && mc.player.containerMenu instanceof MachineMenu menu && menu.containerId == p.containerId()) {
+            menu.data = p.values();
+        }
     }
 
     public static void handleHighlight(HighlightPayload p) {

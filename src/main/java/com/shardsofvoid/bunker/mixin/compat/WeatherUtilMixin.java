@@ -18,12 +18,12 @@ public abstract class WeatherUtilMixin {
     @Inject(method = "shouldGrabBlock(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/level/block/state/BlockState;)Z",
             at = @At("HEAD"), cancellable = true, remap = false, require = 0)
     private static void bunker$noGrab(Level level, BlockState state, CallbackInfoReturnable<Boolean> cir) {
-        if (state.is(ModMisc.INDESTRUCTIBLE)) cir.setReturnValue(false);
+        if (ModMisc.isProtected(state)) cir.setReturnValue(false);
     }
 
     @Inject(method = "shouldRemoveBlock(Lnet/minecraft/world/level/block/state/BlockState;)Z",
             at = @At("HEAD"), cancellable = true, remap = false, require = 0)
     private static void bunker$noRemove(BlockState state, CallbackInfoReturnable<Boolean> cir) {
-        if (state.is(ModMisc.INDESTRUCTIBLE)) cir.setReturnValue(false);
+        if (ModMisc.isProtected(state)) cir.setReturnValue(false);
     }
 }

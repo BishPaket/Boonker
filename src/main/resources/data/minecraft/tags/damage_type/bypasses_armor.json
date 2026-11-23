@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "bunker:radiation"
+    "bunker:radiation",
+    "bunker:stale_air"
   ]
 }

@@ -95,7 +95,7 @@ public final class BunkerEvents {
         BlockPos pos = event.getPos();
         BlockState state = event.getState();
 
-        if (state.is(ModMisc.INDESTRUCTIBLE) && player instanceof FakePlayer && BunkerConfig.BUNKER_METAL_BLOCK_FAKE_PLAYERS.get()) {
+        if (ModMisc.isProtected(state) && player instanceof FakePlayer && BunkerConfig.BUNKER_METAL_BLOCK_FAKE_PLAYERS.get()) {
             event.setCanceled(true); // торнадо Weather2 и машины ломают через «фейкового игрока»
             return;
         }
@@ -133,7 +133,7 @@ public final class BunkerEvents {
     public static void onDetonate(ExplosionEvent.Detonate event) {
         Level level = event.getLevel();
         if (level.isClientSide) return;
-        event.getAffectedBlocks().removeIf(pos -> level.getBlockState(pos).is(ModMisc.INDESTRUCTIBLE));
+        event.getAffectedBlocks().removeIf(pos -> ModMisc.isProtected(level.getBlockState(pos)));
     }
 
     // ---------------------------------------------------------------- отслеживание оболочки (раздел 5.2)
@@ -143,7 +143,59 @@ public final class BunkerEvents {
     }
 
     public static void onPlace(BlockEvent.EntityPlaceEvent event) {
-        if (event.getLevel() instanceof ServerLevel level) BunkerManager.get(level).onBlockChanged(event.getPos());
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
+        BlockState placed = event.getPlacedBlock();
+        if (placed.is(ModMisc.AIRLOCKS)) {
+            Component error = airlockPlacementError(level, event.getPos(), placed);
+            if (error != null) {
+                event.setCanceled(true);
+                if (event.getEntity() instanceof Player p) p.displayClientMessage(error.copy().withStyle(ChatFormatting.RED), true);
+                return;
+            }
+        }
+        BunkerManager.get(level).onBlockChanged(event.getPos());
+    }
+
+    /**
+     * v3 2.1: гермодверь и гермолюк ставятся в грань оболочки любой области бункера, но не на ребро и не в проходную зону.
+     * Вне областей бункеров ограничений нет (ведут себя как обычные железные двери/люки).
+     */
+    @org.jetbrains.annotations.Nullable
+    private static Component airlockPlacementError(ServerLevel level, BlockPos pos, BlockState state) {
+        BunkerManager m = BunkerManager.get(level);
+        List<BlockPos> cells = new ArrayList<>();
+        cells.add(pos);
+        if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) cells.add(pos.above());
+        for (BlockPos c : cells) {
+            Bunker b = m.watchedAt(c);
+            if (b == null) b = m.bunkerAt(c);
+            if (b == null) continue;
+            List<Area> areas = b.areas();
+            boolean inside = false;
+            boolean onFace = false;
+            for (Area a : areas) {
+                if (!a.contains(c)) continue;
+                inside = true;
+                if (a.isShell(c.getX(), c.getY(), c.getZ())) {
+                    if (a.boundaryAxes(c.getX(), c.getY(), c.getZ()) > 1) return Component.translatable("message.bunker.airlock.edge");
+                    onFace = true;
+                }
+            }
+            if (!inside) continue;
+            if (!onFace) return Component.translatable("message.bunker.airlock.not_shell");
+            if (BunkerGeometry.passages(areas).contains(c.asLong())) return Component.translatable("message.bunker.airlock.passage");
+        }
+        return null;
+    }
+
+    /** v3 7.3: при suit.anvilRepair = false части костюма на наковальне только переименовываются и зачаровываются. */
+    public static void onAnvilUpdate(net.neoforged.neoforge.event.AnvilUpdateEvent event) {
+        if (!BunkerConfig.SPEC.isLoaded() || BunkerConfig.SUIT_ANVIL_REPAIR.get()) return;
+        ItemStack left = event.getLeft();
+        ItemStack right = event.getRight();
+        if (left.getItem() instanceof RadSuitItem && !right.isEmpty() && !right.is(net.minecraft.world.item.Items.ENCHANTED_BOOK)) {
+            event.setCanceled(true);
+        }
     }
 
     /** Двери/люки меняют состояние без обновления соседей — перепроверяем по клику. */
@@ -160,7 +212,10 @@ public final class BunkerEvents {
     }
 
     public static void onLevelTick(LevelTickEvent.Post event) {
-        if (event.getLevel() instanceof ServerLevel level) BunkerManager.get(level).tick();
+        if (event.getLevel() instanceof ServerLevel level) {
+            BunkerManager.get(level).tick();
+            BunkerActions.tickViews(level);
+        }
     }
 
     public static void onLevelUnload(LevelEvent.Unload event) {

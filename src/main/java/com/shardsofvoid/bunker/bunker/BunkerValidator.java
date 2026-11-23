@@ -3,7 +3,6 @@ package com.shardsofvoid.bunker.bunker;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.shardsofvoid.bunker.bunker.BunkerGeometry.Cube;
 import com.shardsofvoid.bunker.config.BunkerConfig;
 import com.shardsofvoid.bunker.network.HighlightPayload;
 import com.shardsofvoid.bunker.registry.ModMisc;
@@ -23,12 +22,12 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.chunk.LevelChunk;
 
 /**
- * Проверка герметичности (раздел 5.1). Заливка по 6 направлениям от ячейки ядра через любые блоки,
- * кроме блоков тега bunker:shell_blocks. Дошла до границы объёма — утечка; иначе достигнутые ячейки — защитная зона.
- * Работает только по загруженным чанкам и сама их не грузит.
+ * Проверка герметичности (v2 5.1 с изменениями v3 1.7). Заливка по 6 направлениям стартует со всех свободных ячеек
+ * внутреннего объёма всех областей и идёт через любые блоки, кроме блоков тега bunker:shell_blocks.
+ * Дошла до границы ограничивающего объёма — утечка. Работает только по загруженным чанкам.
  */
 public final class BunkerValidator {
-    public enum Outcome { SEALED, LEAK, TOO_BIG, UNLOADED }
+    public enum Outcome { SEALED, LEAK, TOO_BIG, UNLOADED, NO_VOLUME }
 
     public record Result(Outcome outcome, LongOpenHashSet zone, int shellPresent, int shellExpected,
                          List<BlockPos> missing, Long2BooleanOpenHashMap openables) {
@@ -47,6 +46,14 @@ public final class BunkerValidator {
         return !(state.hasProperty(BlockStateProperties.OPEN) && state.getValue(BlockStateProperties.OPEN));
     }
 
+    /** Оболочка с учётом шлюзового режима: открытая гермодверь в пределах door.graceSeconds считается закрытой. */
+    private static boolean isShell(BlockState state, long key, Bunker bunker, long now) {
+        if (isShell(state)) return true;
+        if (!state.is(ModMisc.AIRLOCKS) || !state.is(ModMisc.SHELL_BLOCKS)) return false;
+        Long since = bunker.doorOpenSince.get(key);
+        return since != null && now - since < BunkerConfig.DOOR_GRACE_SECONDS.get() * 20L;
+    }
+
     /** Кэш чанков на время одной проверки; null — чанк не загружен. */
     private static final class ChunkCache {
         private final ServerLevel level;
@@ -57,7 +64,6 @@ public final class BunkerValidator {
             this.level = level;
         }
 
-        /** Состояние блока или null, если чанк не загружен. */
         BlockState get(int x, int y, int z) {
             int cx = SectionPos.blockToSectionCoord(x);
             int cz = SectionPos.blockToSectionCoord(z);
@@ -77,20 +83,19 @@ public final class BunkerValidator {
     }
 
     public static Result validate(ServerLevel level, Bunker bunker) {
-        BunkerConfig.Adjacency mode = BunkerConfig.ROOM_ADJACENCY.get();
-        List<Cube> cubes = BunkerGeometry.cubes(bunker);
+        List<Area> areas = bunker.areas();
         ChunkCache cache = new ChunkCache(level);
+        long now = level.getGameTime();
 
         // 1. Оболочка: присутствует / ожидается, недостающие позиции, открываемые блоки.
-        LongLinkedOpenHashSet expected = BunkerGeometry.expectedShell(cubes, mode);
+        LongLinkedOpenHashSet expected = BunkerGeometry.expectedShell(areas);
         int present = 0;
         List<BlockPos> missing = new ArrayList<>();
         Long2BooleanOpenHashMap openables = new Long2BooleanOpenHashMap();
         boolean unloaded = false;
         for (LongIterator it = expected.iterator(); it.hasNext(); ) {
             long key = it.nextLong();
-            int x = BlockPos.getX(key), y = BlockPos.getY(key), z = BlockPos.getZ(key);
-            BlockState state = cache.get(x, y, z);
+            BlockState state = cache.get(BlockPos.getX(key), BlockPos.getY(key), BlockPos.getZ(key));
             if (state == null) {
                 unloaded = true;
                 continue;
@@ -98,7 +103,7 @@ public final class BunkerValidator {
             if (state.hasProperty(BlockStateProperties.OPEN) && state.is(ModMisc.SHELL_BLOCKS)) {
                 openables.put(key, state.getValue(BlockStateProperties.OPEN).booleanValue());
             }
-            if (isShell(state)) {
+            if (isShell(state, key, bunker, now)) {
                 present++;
             } else if (missing.size() < HighlightPayload.MAX_MARKERS) {
                 missing.add(BlockPos.of(key));
@@ -108,20 +113,41 @@ public final class BunkerValidator {
             return new Result(Outcome.UNLOADED, null, present, expected.size(), missing, openables);
         }
 
-        // 2. Заливка.
-        int[] b = BunkerGeometry.bounds(cubes, 1);
-        int maxCells = BunkerConfig.BUNKER_VALIDATION_MAX_CELLS.get();
+        // 2. Стартовые ячейки — все свободные ячейки внутреннего объёма всех областей (v3 1.7).
         LongOpenHashSet visited = new LongOpenHashSet();
         LongArrayFIFOQueue queue = new LongArrayFIFOQueue();
-        long start = bunker.core.asLong();
-        visited.add(start);
-        queue.enqueue(start);
+        boolean coreHasVolume = false;
+        for (Area a : areas) {
+            for (int x = a.minX + 1; x < a.maxX; x++) {
+                for (int y = a.minY + 1; y < a.maxY; y++) {
+                    for (int z = a.minZ + 1; z < a.maxZ; z++) {
+                        long key = BlockPos.asLong(x, y, z);
+                        if (visited.contains(key)) continue;
+                        BlockState state = cache.get(x, y, z);
+                        if (state == null) {
+                            return new Result(Outcome.UNLOADED, null, present, expected.size(), missing, openables);
+                        }
+                        if (isShell(state, key, bunker, now)) continue;
+                        if (a == bunker.coreArea) coreHasVolume = true;
+                        visited.add(key);
+                        queue.enqueue(key);
+                    }
+                }
+            }
+        }
+        if (!coreHasVolume) {
+            return new Result(Outcome.NO_VOLUME, null, present, expected.size(), missing, openables);
+        }
+
+        // 3. Заливка.
+        int[] b = BunkerGeometry.bounds(areas, 1);
+        int maxCells = BunkerConfig.BUNKER_VALIDATION_MAX_CELLS.get();
         Outcome outcome = Outcome.SEALED;
         while (!queue.isEmpty()) {
             long cur = queue.dequeueLong();
             int x = BlockPos.getX(cur), y = BlockPos.getY(cur), z = BlockPos.getZ(cur);
             if (x <= b[0] || y <= b[1] || z <= b[2] || x >= b[3] || y >= b[4] || z >= b[5]) {
-                outcome = Outcome.LEAK; // дошли до границы ограничивающего объёма
+                outcome = Outcome.LEAK;
                 break;
             }
             for (int[] d : DIRS) {
@@ -132,7 +158,7 @@ public final class BunkerValidator {
                 if (state == null) {
                     return new Result(Outcome.UNLOADED, null, present, expected.size(), missing, openables);
                 }
-                if (isShell(state)) continue;
+                if (isShell(state, next, bunker, now)) continue;
                 visited.add(next);
                 if (visited.size() > maxCells) {
                     return new Result(Outcome.TOO_BIG, null, present, expected.size(), missing, openables);

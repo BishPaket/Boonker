@@ -39,11 +39,11 @@ public class BunkerRoomItem extends BlockItem {
         }
         if (!context.getLevel().isClientSide && context.getLevel() instanceof ServerLevel level) {
             if (!(player instanceof ServerPlayer sp)) return InteractionResult.FAIL;
-            Component error = BunkerManager.checkRoomPlacement(sp, level, context.getClickedPos(), link);
-            if (error != null) {
-                sp.displayClientMessage(error, true);
-                sp.sendSystemMessage(error);
-                BunkerManager.sendAllowedRoomHighlight(sp, link);
+            // v3 1.4: нет ни одного варианта области — установка отменяется, предмет остаётся у игрока
+            BunkerManager.Placement placement = BunkerManager.checkRoomPlacement(sp, level, context.getClickedPos(), link);
+            if (placement.error() != null) {
+                sp.displayClientMessage(placement.error(), true);
+                sp.sendSystemMessage(placement.error());
                 return InteractionResult.FAIL;
             }
         }
