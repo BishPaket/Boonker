@@ -1,6 +1,7 @@
 # Bunker & Radiation (modid `bunker`)
 
-Мод для нового сезона Shards of Void по ТЗ «Радиация, костюм и система бункеров», версия 2.
+Мод для нового сезона Shards of Void по ТЗ «Радиация, костюм и система бункеров», версия 2,
+и ТЗ v3 «Доработка бункеров — энергия, расширение и жизнеобеспечение».
 Minecraft 1.21.1, NeoForge 21.1.248+ (сборка против 21.1.267), Java 21. Всё в одном моде.
 
 ## Сборка
@@ -13,9 +14,7 @@ Minecraft 1.21.1, NeoForge 21.1.248+ (сборка против 21.1.267), Java 
 
 В `.github/workflows/build.yml` есть сборка в GitHub Actions: после push jar лежит в артефактах.
 
-> Код написан без компиляции: в той среде, где он писался, не было доступа к Maven NeoForge и файлам Minecraft.
-> API сверялось с исходниками NeoForge 1.21.1 и с байткодом модов сборки, но первая сборка может
-> показать несколько ошибок компиляции — это ожидаемо, они правятся точечно.
+`smoke.yml` (запуск вручную) поднимает выделенный сервер и проверяет, что мод, датапак и миксины грузятся без ошибок.
 
 ## Что где
 
@@ -31,6 +30,13 @@ Minecraft 1.21.1, NeoForge 21.1.248+ (сборка против 21.1.267), Java 
 | 6. Комнаты | `block/BunkerRoomBlock`, `item/BunkerRoomItem`, `BunkerManager.checkRoomPlacement` |
 | 7. Улучшения | `bunker/BunkerUpgrades` (данные), `bunker/BunkerActions` (кнопки) |
 | 8. Данные, сеть, конфиг | `bunker/BunkerSavedData`, `registry/ModAttachments`, `registry/ModComponents`, `network/*`, `config/*` |
+| v3 1. Области, расширение, размещение | `bunker/Area`, `bunker/BunkerGeometry` (общая грань, проходы), `BunkerManager.roomVariants/checkBounds` |
+| v3 2. Гермодверь и люк | `block/BunkerDoorBlock`, `block/BunkerHatchBlock`, `block/Airlocks`, шлюз — `BunkerManager.pollOpenables` |
+| v3 3–5. Энергия | `energy/EnergySystem` (сеть, баланс, отключение по приоритету), `energy/*BlockEntity`, `block/MachineBlock`, `block/PowerCableBlock` |
+| v3 6. Интерфейс | `bunker/BunkerActions` (вкладки и действия), `client/BunkerScreen`, `client/MachineScreen`, `menu/MachineMenu` |
+| v3 7. Станция костюмов | `energy/SuitStationBlockEntity`, `client/SuitStationRenderer` |
+| v3 8. Жизнеобеспечение | `energy/LifeSupport`, `AirFilterUnitBlockEntity`, `WaterPurifierBlockEntity`, эффекты — `RadiationSystem.applyLifeSupport`, «Обезвоживание» — `registry/ModEffects` + `mixin/FoodDataMixin` |
+| v3 5.2, 8.6 Лут | `loot/AddPartialItemModifier`, `data/bunker/loot_modifiers/*.json` |
 
 ## Конфиги
 
@@ -47,7 +53,14 @@ Minecraft 1.21.1, NeoForge 21.1.248+ (сборка против 21.1.267), Java 
 
 * `data/bunker/recipe/` — металл, блок комнат, шаблон, части костюма, улучшения костюма (`bunker:radsuit_upgrade`).
 * `data/bunker/bunker_upgrades/core.json`, `room.json` — стоимость и эффекты уровней. Эффекты: `max_rooms`,
-  `dose_decay` (снятие дозы в кубе, ед./с), `mob_effects` (эффекты игрокам в кубе). Файл из другого namespace перекрывает встроенный.
+  `dose_decay` (снятие дозы в объёме, ед./с), `mob_effects` (эффекты игрокам в объёме), v3: `generation` (FE/t ядра),
+  `expansion` (бюджет расширения), `max_batteries`. Принимаются и camelCase-имена. Файл из другого namespace перекрывает встроенный.
+* `data/bunker/loot_modifiers/` + `data/neoforge/loot_modifiers/global_loot_modifiers.json` — ячейки (Древний город 25%, темница 20%,
+  шахта 15%, портал и кораблекрушение 10%, заряд 0–60%) и фильтры (10%, частично изношены). Тип `bunker:add_partial_item`:
+  `item`, `chance`, `min`, `max` + любые условия (`neoforge:loot_table_id`) — так добавляются структуры из других модов.
+* Теги v3: `bunker:airlocks` (шлюзовой режим), `bunker:surface_energy` (защищаются от взрывов и торнадо только при
+  `energy.surfaceTornadoImmune`). Гермодверь, люк, энерговвод и ФВУ входят в `shell_blocks` и `indestructible`.
+* `data/bunker/damage_type/stale_air.json` — урон спёртым воздухом, обходит броню, для First Aid — как радиация.
 * Теги: `bunker:shell_blocks` (оболочка; можно добавлять двери/люки — считаются оболочкой только закрытыми),
   `bunker:indestructible` (не ломаются взрывами, торнадо и «фейковыми игроками»), `bunker:radsuit`.
 * `data/bunker/damage_type/radiation.json` + тег `minecraft:bypasses_armor`.
@@ -78,6 +91,21 @@ Minecraft 1.21.1, NeoForge 21.1.248+ (сборка против 21.1.267), Java 
    ни физической защиты, чинится железом на наковальне.
 8. **Снятый владельцем блок комнат** выпадает с привязкой и уровнем — переставить комнату можно без новой привязки.
 9. Подсветка рисуется поверх стен, чтобы её было видно под землёй.
+
+### v3
+
+10. **Чужой FE** через энерговвод разрешён с потолком 40 FE/t (`energy.acceptForeignFE = true`, `foreignMaxRate = 40`).
+11. **Ремонт на наковальне** выключен (`suit.anvilRepair = false`): часть костюма чинится только станцией. Переименование и книги работают.
+12. **Ядро I** даёт 35 FE/t (II — 50, III — 80): ровно область ядра и две базовые комнаты.
+13. **Мода жажды в сборке нет**, поэтому «Обезвоживание» — свой эффект: без естественной регенерации, Голод I, через 10 минут Слабость I.
+    Бутылку чистой воды можно пить — эффект снимается, пока бак снова пуст.
+14. **Ветряк** не сделан — это этап 2 по ТЗ.
+15. **Запас воды пуст и без станции водоочистки**: по 8.5 это тоже «запас пуст», значит, без станции жильцы обезвоживаются.
+    Поэтому жизнеобеспечение лучше включать после того, как игроки успеют поставить ФВУ и станцию (см. ниже).
+16. Сохранения v2 переносятся автоматически: ядро получает область 3×3×3 вокруг себя, комнаты — свои кубы 5×5×5,
+    все включены, воздух 100%, хранилища пусты.
+
+**Выкатка:** первые 1–2 сессии держать `bunker.lifeSupport.enabled = false` в `bunker-server.toml`, потом включить.
 
 ## Что настроить в сборке
 
