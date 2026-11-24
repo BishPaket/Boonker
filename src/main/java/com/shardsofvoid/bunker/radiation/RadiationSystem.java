@@ -58,12 +58,10 @@ public final class RadiationSystem {
         int wastelandsMirror = -1;
         boolean forceSync = true;
         int sentAir = Integer.MIN_VALUE;
-        int sentWater = Integer.MIN_VALUE;
         int sentArea = Integer.MIN_VALUE;
         String sentAreaName = "";
         boolean sentUnpowered;
         long lastStaleAirDamage;
-        long dehydratedSince = -1;
     }
 
     /** Результат расчёта облучения в текущей точке. */
@@ -250,17 +248,11 @@ public final class RadiationSystem {
     }
 
     /**
-     * v3 8.3/8.5: эффекты воздуха и воды для игрока в зоне. Выход из зоны — эффекты (короткие, без частиц)
-     * просто истекают, «Обезвоживание» снимается сразу.
+     * v3 8.3: эффекты нехватки воздуха для игрока в зоне. Выход из зоны — эффекты (короткие, без частиц) просто истекают.
+     * Жажды здесь нет — её ведёт отдельный мод.
      */
     private static void applyLifeSupport(ServerPlayer player, ZoneInfo zone, int intervalTicks, PlayerState st) {
-        if (zone == null || !BunkerConfig.LIFE_SUPPORT_ENABLED.get()) {
-            if (player.hasEffect(com.shardsofvoid.bunker.registry.ModEffects.DEHYDRATION)) {
-                player.removeEffect(com.shardsofvoid.bunker.registry.ModEffects.DEHYDRATION);
-            }
-            st.dehydratedSince = -1;
-            return;
-        }
+        if (zone == null || !BunkerConfig.LIFE_SUPPORT_ENABLED.get()) return;
         int duration = intervalTicks + 20;
         long now = player.serverLevel().getGameTime();
         double air = zone.bunker().air;
@@ -273,20 +265,6 @@ public final class RadiationSystem {
             st.lastStaleAirDamage = now;
             player.hurt(new DamageSource(player.serverLevel().registryAccess().registryOrThrow(Registries.DAMAGE_TYPE)
                     .getHolderOrThrow(ModMisc.STALE_AIR_DAMAGE)), 1.0f);
-        }
-
-        if (zone.bunker().waterStock <= 0) {
-            if (st.dehydratedSince < 0) st.dehydratedSince = now;
-            player.addEffect(new MobEffectInstance(com.shardsofvoid.bunker.registry.ModEffects.DEHYDRATION, duration, 0, true, false, true));
-            player.addEffect(new MobEffectInstance(MobEffects.HUNGER, duration, 0, true, false, true));
-            if (now - st.dehydratedSince >= BunkerConfig.WATER_DEHYDRATION_WEAKNESS_MIN.get() * 1200L) {
-                player.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, duration, 0, true, false, true));
-            }
-        } else {
-            st.dehydratedSince = -1;
-            if (player.hasEffect(com.shardsofvoid.bunker.registry.ModEffects.DEHYDRATION)) {
-                player.removeEffect(com.shardsofvoid.bunker.registry.ModEffects.DEHYDRATION);
-            }
         }
     }
 
@@ -327,13 +305,11 @@ public final class RadiationSystem {
         BunkerManager.ZoneInfo zone = exposure.zone();
         boolean life = zone != null && BunkerConfig.LIFE_SUPPORT_ENABLED.get();
         int air = life ? (int) Math.round(zone.bunker().air) : -1;
-        int water = life ? (zone.bunker().waterCapacity <= 0 ? 0
-                : (int) Math.round(100.0 * zone.bunker().waterStock / zone.bunker().waterCapacity)) : -1;
         int areaIndex = zone == null ? -1 : zone.area() == zone.bunker().coreArea ? 0 : zone.bunker().roomIndex(zone.area().anchor);
         String areaName = zone == null ? "" : zone.area().name;
         boolean unpowered = zone != null && !zone.protectedHere();
         boolean changed = st.forceSync
-                || air != st.sentAir || water != st.sentWater || areaIndex != st.sentArea
+                || air != st.sentAir || areaIndex != st.sentArea
                 || !areaName.equals(st.sentAreaName) || unpowered != st.sentUnpowered
                 || Math.abs(dose - st.sentDose) >= 0.01
                 || stage != st.sentStage
@@ -349,12 +325,11 @@ public final class RadiationSystem {
         st.sentSource = source;
         st.sentMax = max;
         st.sentAir = air;
-        st.sentWater = water;
         st.sentArea = areaIndex;
         st.sentAreaName = areaName;
         st.sentUnpowered = unpowered;
         PacketDistributor.sendToPlayer(player, new RadiationSyncPayload(dose, max, stage, rate, source,
-                air, water, areaIndex, areaName, unpowered));
+                air, areaIndex, areaName, unpowered));
     }
 
     // ---------------------------------------------------------------- эффекты стадий

@@ -16,8 +16,8 @@ import net.neoforged.neoforge.items.ItemStackHandler;
 
 /**
  * v3 8.4: станция водоочистки. Бак сырой воды 8 000 mB (вёдра, бутылки, трубы через fluid capability),
- * очистка 1 000 mB за 30 с при 3 FE/t, картридж теряет 1 ед. на 1 000 mB. Бак чистой воды 16 000 mB —
- * это и есть запас воды бункера.
+ * очистка 1 000 mB за 30 с при 3 FE/t, картридж теряет 1 ед. на 1 000 mB. Бак чистой воды 16 000 mB:
+ * из него набирают бутылки и вёдра, а трубы забирают воду (жажда — отдельным модом).
  */
 public class WaterPurifierBlockEntity extends BunkerMachineBlockEntity {
     public static final int RAW_CAPACITY = 8_000;
@@ -133,12 +133,20 @@ public class WaterPurifierBlockEntity extends BunkerMachineBlockEntity {
 
         @Override
         public FluidStack drain(FluidStack resource, FluidAction action) {
-            return FluidStack.EMPTY;
+            if (resource.isEmpty() || !resource.is(Fluids.WATER)) return FluidStack.EMPTY;
+            return drain(resource.getAmount(), action);
         }
 
+        /** Трубы забирают только чистую воду. */
         @Override
         public FluidStack drain(int maxDrain, FluidAction action) {
-            return FluidStack.EMPTY;
+            int got = Math.max(0, Math.min(maxDrain, clean));
+            if (got <= 0) return FluidStack.EMPTY;
+            if (action.execute()) {
+                clean -= got;
+                setChanged();
+            }
+            return new FluidStack(Fluids.WATER, got);
         }
     };
 

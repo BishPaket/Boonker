@@ -174,6 +174,7 @@ public final class EnergySystem {
         List<BunkerMachineBlockEntity> stations = limit(byKind, MachineKind.SUIT_STATION, BunkerConfig.STATION_MAX_PER_BUNKER.get());
         List<BunkerMachineBlockEntity> fvus = limit(byKind, MachineKind.AIR_FILTER_UNIT, 1);
         List<BunkerMachineBlockEntity> purifiers = limit(byKind, MachineKind.WATER_PURIFIER, 1);
+        List<BunkerMachineBlockEntity> recyclers = limit(byKind, MachineKind.METAL_RECYCLER, 1);
 
         EnergyReport report = new EnergyReport();
         report.cableTooBig = m.cableTooBig.contains(b.id);
@@ -208,7 +209,7 @@ public final class EnergySystem {
             List<BunkerMachineBlockEntity> all = byKind.get(k);
             if (all == null) continue;
             for (BunkerMachineBlockEntity be : all) {
-                if (excess(be, furnaces, solars, batteries, racks, inlets, stations, fvus, purifiers)) {
+                if (excess(be, furnaces, solars, batteries, racks, inlets, stations, fvus, purifiers, recyclers)) {
                     be.setStatus(MachineStatus.EXCESS);
                     be.setLastRate(0);
                     if (k.generator) report.sources.add(new EnergyReport.Source(k.key(), be.getBlockPos(), 0, "excess", 0));
@@ -253,6 +254,20 @@ public final class EnergySystem {
             if (purifierWants && !b.purifierShed) consumption += purifierCost;
         }
 
+        MetalRecyclerBlockEntity recycler = recyclers.isEmpty() ? null : (MetalRecyclerBlockEntity) recyclers.get(0);
+        int recyclerCost = BunkerConfig.ENERGY_RECYCLER.get();
+        boolean recyclerWants = false;
+        if (recycler != null) {
+            MachineStatus st = installationBlocker(m, b, recycler, active);
+            if (st == null) st = recycler.blocker();
+            if (st == null) {
+                recyclerWants = true;
+                st = b.recyclerShed ? MachineStatus.SHED : MachineStatus.WORKING;
+            }
+            recycler.setStatus(st);
+            if (recyclerWants && !b.recyclerShed) consumption += recyclerCost;
+        }
+
         SuitStationBlockEntity station = stations.isEmpty() ? null : (SuitStationBlockEntity) stations.get(0);
         int stationCost = 0;
         if (station != null) {
@@ -276,8 +291,15 @@ public final class EnergySystem {
             need -= dischargeBatteries(batteries, need, interval);
             if (rack != null && rack.canDischarge() && need > 0) need -= rack.discharge((int) Math.min(Integer.MAX_VALUE, need), interval);
             if (need > 0 && active) {
-                // 5. Отключение нагрузки (3.5): станция → водоочистка → комнаты от низшего приоритета.
+                // 5. Отключение нагрузки (3.5): очистка металла → станция → водоочистка → комнаты от низшего приоритета.
                 int deficit = (int) Math.ceil(need / (double) interval);
+                if (deficit > 0 && recycler != null && recyclerWants && !b.recyclerShed) {
+                    b.recyclerShed = true;
+                    recycler.setStatus(MachineStatus.SHED);
+                    consumption -= recyclerCost;
+                    deficit -= recyclerCost;
+                    m.notifyOwner(b, Component.translatable("message.bunker.shed.recycler").withStyle(ChatFormatting.GOLD), false);
+                }
                 if (deficit > 0 && station != null && station.status() == MachineStatus.WORKING) {
                     b.stationShed = true;
                     station.setStatus(MachineStatus.SHED);
@@ -322,6 +344,8 @@ public final class EnergySystem {
                 b.purifierShed = false;
             } else if (!restored && b.stationShed && station != null && surplus >= Math.max(stationCost, 1)) {
                 b.stationShed = false;
+            } else if (!restored && b.recyclerShed && surplus >= recyclerCost) {
+                b.recyclerShed = false;
             }
         }
 
@@ -336,6 +360,13 @@ public final class EnergySystem {
             boolean run = purifier.status() == MachineStatus.WORKING;
             if (run) purifier.process(interval);
             purifier.setLastRate(run ? purifierCost : 0);
+        }
+        if (recycler != null) {
+            boolean run = recycler.status() == MachineStatus.WORKING;
+            if (run) recycler.process(interval);
+            recycler.setLastRate(run ? recyclerCost : 0);
+            report.consumers.add(new EnergyReport.Consumer(false, MachineKind.METAL_RECYCLER.key(), 0,
+                    recycler.getBlockPos(), "", recycler.lastRate(), recycler.status().key()));
         }
         if (station != null) report.consumers.add(new EnergyReport.Consumer(false, MachineKind.SUIT_STATION.key(), 0,
                 station.getBlockPos(), "", station.lastRate(), station.status().key()));
@@ -392,7 +423,7 @@ public final class EnergySystem {
     private static MachineStatus installationBlocker(BunkerManager m, Bunker b, BunkerMachineBlockEntity be, boolean enabled) {
         if (!enabled || !b.isActive()) return MachineStatus.INACTIVE;
         BlockPos p = be.getBlockPos();
-        if (!m.inZone(b, p)) return MachineStatus.OUTSIDE;
+        if (!m.servesZone(b, p)) return MachineStatus.OUTSIDE;
         Area a = b.areaAt(p.getX(), p.getY(), p.getZ());
         if (a != null && !b.isAreaOn(a)) return MachineStatus.ROOM_OFF;
         return null;

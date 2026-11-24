@@ -69,6 +69,10 @@ public final class BunkerConfig {
 
     // upgrade
     public static final ModConfigSpec.BooleanValue UPGRADE_REQUIRES_ACTIVE;
+    public static final ModConfigSpec.ConfigValue<java.util.List<? extends Integer>> EXPANSION_TIER_COST;
+    public static final ModConfigSpec.ConfigValue<String> EXPANSION_TIER_ITEM;
+    public static final ModConfigSpec.IntValue EXPANSION_TIER_BUDGET;
+    public static final ModConfigSpec.IntValue EXPANSION_TIER_HORIZONTAL;
 
     // v3: area
     public static final ModConfigSpec.IntValue AREA_MAX_HORIZONTAL;
@@ -93,6 +97,12 @@ public final class BunkerConfig {
     public static final ModConfigSpec.IntValue ENERGY_FVU_BASE;
     public static final ModConfigSpec.IntValue ENERGY_FVU_CELLS_PER_FE;
     public static final ModConfigSpec.IntValue ENERGY_PURIFIER;
+    public static final ModConfigSpec.IntValue ENERGY_RECYCLER;
+    public static final ModConfigSpec.ConfigValue<String> RECYCLER_INPUT;
+    public static final ModConfigSpec.DoubleValue RECYCLER_CHANCE;
+    public static final ModConfigSpec.IntValue RECYCLER_SECONDS;
+    public static final ModConfigSpec.IntValue RECYCLER_FAIL_MIN;
+    public static final ModConfigSpec.IntValue RECYCLER_FAIL_MAX;
     public static final ModConfigSpec.IntValue ENERGY_STATION_PER_PART;
 
     // v3: generators and storage
@@ -118,9 +128,8 @@ public final class BunkerConfig {
     public static final ModConfigSpec.IntValue FILTER_WATER_RESOURCE;
     public static final ModConfigSpec.DoubleValue AIR_RESTORE_PER_MIN;
     public static final ModConfigSpec.DoubleValue AIR_DRAIN_PER_PLAYER_MIN;
-    public static final ModConfigSpec.IntValue WATER_PER_PLAYER_MIN;
     public static final ModConfigSpec.IntValue WATER_PURIFY_SECONDS;
-    public static final ModConfigSpec.IntValue WATER_DEHYDRATION_WEAKNESS_MIN;
+    public static final ModConfigSpec.ConfigValue<String> WATER_BOTTLE_ITEM;
 
     public enum Adjacency { SHARED_WALL, DOUBLE_WALL }
 
@@ -242,6 +251,13 @@ public final class BunkerConfig {
         b.push("upgrade");
         UPGRADE_REQUIRES_ACTIVE = b.comment("Улучшать ядро и комнаты можно только в состоянии «Активен».")
                 .define("requiresActive", true);
+        EXPANSION_TIER_COST = b.comment("«Улучшить расширения» (ядро III): цена каждого шага в предметах expansionTierItem.",
+                        "Число элементов — сколько шагов доступно.")
+                .defineList("expansionTierCost", java.util.List.of(2, 4, 6), () -> 2, o -> o instanceof Integer i && i >= 0);
+        EXPANSION_TIER_ITEM = b.comment("Предмет для «Улучшить расширения».").define("expansionTierItem", "minecraft:netherite_ingot");
+        EXPANSION_TIER_BUDGET = b.comment("+ к бюджету расширения каждой области за шаг.").defineInRange("expansionTierBudget", 2, 0, 64);
+        EXPANSION_TIER_HORIZONTAL = b.comment("+ к пределу внутреннего размера по X и Z за шаг (по Y предел не растёт).")
+                .defineInRange("expansionTierHorizontal", 2, 0, 64);
         b.pop();
 
         b.push("area");
@@ -283,6 +299,7 @@ public final class BunkerConfig {
         ENERGY_FVU_BASE = b.comment("[доп.] ФВУ: базовое потребление, FE/t.").defineInRange("filterUnitBase", 2, 0, 100000);
         ENERGY_FVU_CELLS_PER_FE = b.comment("[доп.] ФВУ: +1 FE/t за каждые начатые N ячеек зоны.").defineInRange("filterUnitCellsPerFE", 50, 1, 100000);
         ENERGY_PURIFIER = b.comment("[доп.] Станция водоочистки, FE/t, пока очищает.").defineInRange("purifier", 3, 0, 100000);
+        ENERGY_RECYCLER = b.comment("Станция очистки металла, FE/t, пока работает.").defineInRange("recycler", 12, 0, 100000);
         ENERGY_STATION_PER_PART = b.comment("[доп.] Станция обслуживания: FE/t на чинящуюся часть.").defineInRange("stationPerPart", 10, 0, 100000);
         b.pop();
         b.pop();
@@ -329,9 +346,19 @@ public final class BunkerConfig {
                 .define("enabled", true);
         AIR_RESTORE_PER_MIN = b.comment("Работающая ФВУ: +% воздуха в минуту.").defineInRange("airRestorePerMinute", 5.0, 0.0, 100.0);
         AIR_DRAIN_PER_PLAYER_MIN = b.comment("Без ФВУ: −% воздуха в минуту за каждого игрока в зоне.").defineInRange("airDrainPerPlayerMinute", 2.0, 0.0, 100.0);
-        WATER_PER_PLAYER_MIN = b.comment("Расход чистой воды, mB в минуту на игрока.").defineInRange("waterPerPlayerMinute", 50, 0, 100000);
         WATER_PURIFY_SECONDS = b.comment("Очистка 1000 mB, секунд.").defineInRange("purifySeconds", 30, 1, 3600);
-        WATER_DEHYDRATION_WEAKNESS_MIN = b.comment("Через сколько минут обезвоживания добавляется Слабость I.").defineInRange("dehydrationWeaknessMinutes", 10, 0, 1440);
+        WATER_BOTTLE_ITEM = b.comment("Что получает игрок, набирая пустой бутылкой чистую воду (250 mB). Жажда — отдельным модом:",
+                        "укажите здесь его «чистую» бутылку. minecraft:potion — обычная бутылка воды.")
+                .define("bottleItem", "bunker:clean_water_bottle");
+        b.pop();
+
+        b.push("recycler");
+        RECYCLER_INPUT = b.comment("Что перерабатывает станция очистки металла (металлолом Wastelands).")
+                .define("input", "wastelands:scrap_metal");
+        RECYCLER_CHANCE = b.comment("Шанс получить незеритовый обломок с одного металлолома.").defineInRange("successChance", 0.03, 0.0, 1.0);
+        RECYCLER_SECONDS = b.comment("Секунд на один металлолом.").defineInRange("seconds", 10, 1, 3600);
+        RECYCLER_FAIL_MIN = b.comment("Неудача: железных самородков от…").defineInRange("failNuggetsMin", 1, 0, 64);
+        RECYCLER_FAIL_MAX = b.comment("…до.").defineInRange("failNuggetsMax", 5, 0, 64);
         b.pop();
 
         b.push("filter");

@@ -215,6 +215,7 @@ public final class BunkerEvents {
         if (event.getLevel() instanceof ServerLevel level) {
             BunkerManager.get(level).tick();
             BunkerActions.tickViews(level);
+            BunkerPlanner.tickViews(level);
         }
     }
 

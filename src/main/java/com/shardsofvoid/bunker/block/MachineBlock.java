@@ -168,11 +168,34 @@ public class MachineBlock extends BaseEntityBlock {
             if (level.isClientSide) return ItemInteractionResult.SUCCESS;
             if (purifier.clean() < 250) return ItemInteractionResult.FAIL;
             purifier.takeClean(250);
-            player.setItemInHand(hand, ItemUtils.createFilledResult(stack, player, new ItemStack(com.shardsofvoid.bunker.registry.ModMachines.CLEAN_WATER_BOTTLE.get())));
+            player.setItemInHand(hand, ItemUtils.createFilledResult(stack, player, cleanBottle()));
             level.playSound(null, pos, SoundEvents.BOTTLE_FILL, SoundSource.BLOCKS, 1.0F, 1.0F);
             return ItemInteractionResult.SUCCESS;
         }
+        if (stack.is(Items.BUCKET) && player.isShiftKeyDown()) {
+            // Shift + пустое ведро — ведро чистой воды из бака (1000 mB); без Shift ведро не трогаем
+            if (level.isClientSide) return ItemInteractionResult.SUCCESS;
+            if (purifier.clean() < 1000) return ItemInteractionResult.FAIL;
+            purifier.takeClean(1000);
+            player.setItemInHand(hand, ItemUtils.createFilledResult(stack, player, new ItemStack(Items.WATER_BUCKET)));
+            level.playSound(null, pos, SoundEvents.BUCKET_FILL, SoundSource.BLOCKS, 1.0F, 1.0F);
+            return ItemInteractionResult.SUCCESS;
+        }
         return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+    }
+
+    /** Бутылка чистой воды: предмет из конфига water.bottleItem (мод жажды), по умолчанию bunker:clean_water_bottle. */
+    private static ItemStack cleanBottle() {
+        String id = com.shardsofvoid.bunker.config.BunkerConfig.WATER_BOTTLE_ITEM.get();
+        net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation.tryParse(id);
+        if (rl != null && rl.equals(net.minecraft.resources.ResourceLocation.withDefaultNamespace("potion"))) {
+            return PotionContents.createItemStack(Items.POTION, Potions.WATER);
+        }
+        if (rl != null) {
+            var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(rl);
+            if (item.isPresent() && item.get() != Items.AIR) return new ItemStack(item.get());
+        }
+        return new ItemStack(com.shardsofvoid.bunker.registry.ModMachines.CLEAN_WATER_BOTTLE.get());
     }
 
     @Override

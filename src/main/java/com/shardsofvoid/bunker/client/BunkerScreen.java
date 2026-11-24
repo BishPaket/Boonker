@@ -334,6 +334,11 @@ public class BunkerScreen extends Screen {
             addRenderableWidget(center);
         }
         int y = bottomRow();
+        Button tier = Button.builder(Component.translatable("gui.bunker.button.expand_tier", data.getInt("tier"), data.getInt("tierMax")),
+                b -> send("expand_tier")).bounds(left + 6, y, 116, 20).build();
+        tier.active = data.getBoolean("canTier");
+        tier.setTooltip(Tooltip.create(json("tierInfo")));
+        addRenderableWidget(tier);
         Button reset = Button.builder(Component.translatable("gui.bunker.button.reset"), b -> send("reset"))
                 .bounds(left + W - 200, y, 94, 20).build();
         reset.active = data.getBoolean("changed");
@@ -700,15 +705,12 @@ public class BunkerScreen extends Screen {
         y += 14;
         int water = l.getInt("water");
         int cap = l.getInt("waterCapacity");
-        g.drawString(font, Component.translatable("gui.bunker.life.water", water, cap), x, y, water <= 0 ? 0xFFFF6B6B : 0xFF66AAFF, true);
+        g.drawString(font, Component.translatable("gui.bunker.life.water", water, cap), x, y, 0xFF66AAFF, true);
         bar(g, x + 160, y, 150, 8, water, Math.max(1, cap), 0xFF50B0FF);
         y += 12;
         int players = l.getInt("players");
         if (players > 0) {
-            Component forecast = water > 0
-                    ? Component.translatable("gui.bunker.life.water_forecast", players, minutes(water * 1200L / Math.max(1, players * 50L)))
-                    : Component.translatable("gui.bunker.life.water_empty");
-            g.drawString(font, forecast, x, y, 0xFFCCCCCC, false);
+            g.drawString(font, Component.translatable("gui.bunker.life.players", players), x, y, 0xFFCCCCCC, false);
         } else {
             g.drawString(font, Component.translatable("gui.bunker.life.nobody"), x, y, 0xFF777777, false);
         }

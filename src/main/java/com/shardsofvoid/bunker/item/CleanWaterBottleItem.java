@@ -1,7 +1,5 @@
 package com.shardsofvoid.bunker.item;
 
-import com.shardsofvoid.bunker.registry.ModEffects;
-
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.InteractionHand;
@@ -15,7 +13,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.level.Level;
 
-/** v3 8.5: «Бутылка чистой воды» (250 mB) из станции водоочистки. Снимает «Обезвоживание». */
+/** «Бутылка чистой воды» (250 mB) из станции водоочистки. Жажду ведёт отдельный мод — бутылку для него задаёт water.bottleItem. */
 public class CleanWaterBottleItem extends Item {
     public CleanWaterBottleItem(Properties properties) {
         super(properties);
@@ -23,7 +21,6 @@ public class CleanWaterBottleItem extends Item {
 
     @Override
     public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity) {
-        if (!level.isClientSide) entity.removeEffect(ModEffects.DEHYDRATION);
         if (entity instanceof ServerPlayer player) player.awardStat(Stats.ITEM_USED.get(this));
         if (entity instanceof Player player && player.hasInfiniteMaterials()) return stack;
         stack.shrink(1);

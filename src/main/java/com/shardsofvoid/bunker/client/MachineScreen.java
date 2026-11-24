@@ -72,6 +72,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             }
             case CELL_RACK -> bar(g, x + 70, y + 26, 98, 8, menu.value(2), menu.value(3), 0xFFE04040);
             case AIR_FILTER_UNIT -> bar(g, x + 70, y + 40, 98, 8, menu.value(2), menu.value(3), 0xFF60C060);
+            case METAL_RECYCLER -> bar(g, x + 70, y + 39, 38, 6, menu.value(2), menu.value(3), 0xFFE0E0E0);
             case WATER_PURIFIER -> {
                 tank(g, x + 60, y + 18, 18, 52, menu.value(2), WaterPurifierBlockEntity.RAW_CAPACITY, 0xFF3060A0);
                 tank(g, x + 120, y + 18, 18, 52, menu.value(3), WaterPurifierBlockEntity.CLEAN_CAPACITY, 0xFF50B0FF);
@@ -119,6 +120,10 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 g.drawString(font, Component.translatable("gui.bunker.station.parts"), 48, 12, 0xFF404040, false);
                 g.drawString(font, Component.translatable("gui.bunker.machine.use", Math.abs(rate)), 48, 30, 0xFF404040, false);
                 g.drawString(font, Component.translatable("gui.bunker.station.material"), 82, 66, 0xFF404040, false);
+            }
+            case METAL_RECYCLER -> {
+                g.drawString(font, Component.translatable("gui.bunker.recycler.hint"), 8, 60, 0xFF404040, false);
+                g.drawString(font, Component.translatable("gui.bunker.machine.use", Math.abs(rate)), 8, 70, 0xFF404040, false);
             }
             case AIR_FILTER_UNIT -> {
                 g.drawString(font, Component.translatable("gui.bunker.machine.filter", menu.value(2), menu.value(3)), 70, 28, 0xFF404040, false);

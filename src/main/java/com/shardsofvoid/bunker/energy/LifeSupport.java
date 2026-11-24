@@ -12,8 +12,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Жизнеобеспечение бункера (ТЗ v3, 8): воздух и чистая вода. Тратятся, только пока внутри есть игроки.
- * Эффекты для игроков применяет RadiationSystem в своей ежесекундной проверке.
+ * Жизнеобеспечение бункера (ТЗ v3, 8): воздух тратится, только пока внутри есть игроки. Вода жильцами не тратится —
+ * жажду ведёт отдельный мод, станция водоочистки лишь наполняет бутылки и вёдра. Эффекты воздуха — в RadiationSystem.
  */
 public final class LifeSupport {
     private LifeSupport() {}
@@ -93,23 +93,6 @@ public final class LifeSupport {
             b.warnedAir = false;
         }
 
-        // Вода (8.5): каждый игрок в зоне тратит waterPerPlayerMinute mB в минуту.
-        if (purifier != null && players > 0) {
-            b.waterAccumulator += players * BunkerConfig.WATER_PER_PLAYER_MIN.get() * minutes;
-            int whole = (int) Math.floor(b.waterAccumulator);
-            if (whole > 0) {
-                b.waterAccumulator -= whole;
-                purifier.takeClean(whole);
-            }
-            b.waterStock = purifier.clean();
-            report.water = b.waterStock;
-        }
-        if (b.waterStock <= 0 && players > 0 && !b.warnedWater) {
-            b.warnedWater = true;
-            m.notifyOwner(b, Component.translatable("message.bunker.life.water_empty").withStyle(ChatFormatting.GOLD), false);
-        } else if (b.waterStock > 0) {
-            b.warnedWater = false;
-        }
     }
 
     private static void fillFilter(EnergyReport report, AirFilterUnitBlockEntity fvu) {

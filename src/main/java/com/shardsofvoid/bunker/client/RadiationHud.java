@@ -80,7 +80,7 @@ public final class RadiationHud {
         }
     }
 
-    /** v3 8.7: значки воздуха и воды, мигают ниже 25%; «Обесточено» в отключённой или обесточенной комнате. */
+    /** v3 8.7: значок воздуха, мигает ниже 25%; «Обесточено» в отключённой или обесточенной комнате. */
     private static void renderLife(GuiGraphics g, Font font, Minecraft mc, int x, int y) {
         boolean blinkOff = mc.level != null && (mc.level.getGameTime() / 10) % 2 == 0;
         int cx = x;
@@ -89,12 +89,6 @@ public final class RadiationHud {
             if (!(air < 25 && blinkOff)) {
                 Component t = Component.translatable("hud.bunker.air", air);
                 g.drawString(font, t, cx, y, air < 25 ? 0xFFFF5555 : air < 50 ? 0xFFFFAA00 : 0xFFAADDFF, true);
-            }
-            cx += 50;
-            int water = ClientState.water;
-            if (water >= 0 && !(water < 25 && blinkOff)) {
-                Component t = Component.translatable("hud.bunker.water", water);
-                g.drawString(font, t, cx, y, water < 25 ? 0xFFFF5555 : 0xFF66AAFF, true);
             }
         } else if (ClientState.unpowered) {
             g.drawString(font, Component.translatable("hud.bunker.unpowered"), cx, y, 0xFFFF5555, true);

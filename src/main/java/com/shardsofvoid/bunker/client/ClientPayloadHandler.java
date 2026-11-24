@@ -25,7 +25,6 @@ public final class ClientPayloadHandler {
         ClientState.source = RadiationSource.byId(p.source());
         ClientState.hasData = true;
         ClientState.air = p.air();
-        ClientState.water = p.water();
         ClientState.unpowered = p.unpowered();
         if (p.areaIndex() != ClientState.areaIndex || !p.areaName().equals(ClientState.areaName)) {
             boolean moved = p.areaIndex() != ClientState.areaIndex;
@@ -66,6 +65,11 @@ public final class ClientPayloadHandler {
 
     public static void handleScreen(BunkerScreenPayload p) {
         Minecraft mc = Minecraft.getInstance();
+        if (p.data().getBoolean("planner")) {
+            if (mc.screen instanceof PlannerScreen screen && screen.pos().equals(p.pos())) screen.update(p.data());
+            else if (p.open()) mc.setScreen(new PlannerScreen(p.pos(), p.data()));
+            return;
+        }
         if (mc.screen instanceof BunkerScreen screen && screen.pos().equals(p.pos())) {
             screen.update(p);
         } else if (p.open()) {

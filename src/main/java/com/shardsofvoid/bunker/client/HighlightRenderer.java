@@ -48,29 +48,39 @@ public final class HighlightRenderer {
         RenderSystem.depthMask(false);
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
 
-        // рамки кубов
+        float op = (float) (double) com.shardsofvoid.bunker.config.BunkerClientConfig.HIGHLIGHT_OPACITY.get();
+        // рамки кубов (тонкие, сквозь стены, приглушённые)
         BufferBuilder lines = Tesselator.getInstance().begin(VertexFormat.Mode.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR);
         List<BlockPos> boxes = ClientState.boxes;
         for (int i = 0; i + 1 < boxes.size(); i += 2) {
             BlockPos a = boxes.get(i);
             BlockPos b = boxes.get(i + 1);
             box(lines, m, a.getX() - 0.002f, a.getY() - 0.002f, a.getZ() - 0.002f,
-                    b.getX() + 1.002f, b.getY() + 1.002f, b.getZ() + 1.002f, 0.3f, 0.85f, 1.0f, 0.9f);
+                    b.getX() + 1.002f, b.getY() + 1.002f, b.getZ() + 1.002f, 0.3f, 0.85f, 1.0f, Math.min(1f, op * 1.6f));
         }
         for (BlockPos p : ClientState.allowed) {
             box(lines, m, p.getX() + 0.2f, p.getY() + 0.2f, p.getZ() + 0.2f,
-                    p.getX() + 0.8f, p.getY() + 0.8f, p.getZ() + 0.8f, 0.3f, 1.0f, 0.3f, 0.9f);
+                    p.getX() + 0.8f, p.getY() + 0.8f, p.getZ() + 0.8f, 0.3f, 1.0f, 0.3f, Math.min(1f, op * 1.6f));
         }
         draw(lines);
 
-        // полупрозрачные маркеры недостающих блоков
-        if (!ClientState.missing.isEmpty()) {
+        // маркеры недостающих блоков: контур + едва заметная заливка; по умолчанию с проверкой глубины,
+        // чтобы десятки маркеров за стенами не сливались в сплошное красное пятно
+        if (!ClientState.missing.isEmpty() && op > 0) {
+            if (!com.shardsofvoid.bunker.config.BunkerClientConfig.HIGHLIGHT_THROUGH_WALLS.get()) RenderSystem.enableDepthTest();
+            BufferBuilder outline = Tesselator.getInstance().begin(VertexFormat.Mode.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR);
+            for (BlockPos p : ClientState.missing) {
+                box(outline, m, p.getX() + 0.05f, p.getY() + 0.05f, p.getZ() + 0.05f,
+                        p.getX() + 0.95f, p.getY() + 0.95f, p.getZ() + 0.95f, 1.0f, 0.45f, 0.35f, Math.min(1f, op * 1.5f));
+            }
+            draw(outline);
             BufferBuilder quads = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
             for (BlockPos p : ClientState.missing) {
-                cube(quads, m, p.getX() + 0.1f, p.getY() + 0.1f, p.getZ() + 0.1f,
-                        p.getX() + 0.9f, p.getY() + 0.9f, p.getZ() + 0.9f, 1.0f, 0.25f, 0.2f, 0.35f);
+                cube(quads, m, p.getX() + 0.3f, p.getY() + 0.3f, p.getZ() + 0.3f,
+                        p.getX() + 0.7f, p.getY() + 0.7f, p.getZ() + 0.7f, 1.0f, 0.4f, 0.3f, op * 0.3f);
             }
             draw(quads);
+            RenderSystem.disableDepthTest();
         }
 
         RenderSystem.depthMask(true);

@@ -18,7 +18,6 @@ import com.shardsofvoid.bunker.registry.ModAttachments;
 import com.shardsofvoid.bunker.registry.ModBlocks;
 import com.shardsofvoid.bunker.item.EnergyCellItem;
 import com.shardsofvoid.bunker.registry.ModComponents;
-import com.shardsofvoid.bunker.registry.ModEffects;
 import com.shardsofvoid.bunker.registry.ModMachines;
 import com.shardsofvoid.bunker.registry.ModItems;
 import com.shardsofvoid.bunker.registry.ModMisc;
@@ -73,6 +72,7 @@ public final class BunkerMod {
         event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModMachines.AIR_FILTER_UNIT_BE.get(), (be, side) -> be.items());
         event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModMachines.WATER_PURIFIER_BE.get(), (be, side) -> be.items());
         event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModMachines.SUIT_STATION_BE.get(), (be, side) -> be.items());
+        event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModMachines.METAL_RECYCLER_BE.get(), (be, side) -> be.items());
         event.registerItem(Capabilities.EnergyStorage.ITEM, (stack, ctx) -> new ComponentEnergyStorage(stack,
                 ModComponents.STORED_ENERGY.get(), EnergyCellItem.capacity(), BunkerConfig.RACK_RATE_PER_CELL.get()), ModMachines.ENERGY_CELL.get());
     }
@@ -95,7 +95,6 @@ public final class BunkerMod {
         // v3: энергия и жизнеобеспечение
         ModMachines.init();
         ModMachines.MENUS.register(modBus);
-        ModEffects.EFFECTS.register(modBus);
         ModMisc.LOOT_MODIFIERS.register(modBus);
         modBus.addListener(RegisterCapabilitiesEvent.class, BunkerMod::registerCapabilities);
 

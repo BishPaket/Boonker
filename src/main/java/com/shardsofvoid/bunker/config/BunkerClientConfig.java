@@ -11,6 +11,8 @@ public final class BunkerClientConfig {
     public static final ModConfigSpec.IntValue HUD_OFFSET_Y;
     public static final ModConfigSpec.BooleanValue HUD_ENABLED;
     public static final ModConfigSpec.DoubleValue GEIGER_VOLUME;
+    public static final ModConfigSpec.DoubleValue HIGHLIGHT_OPACITY;
+    public static final ModConfigSpec.BooleanValue HIGHLIGHT_THROUGH_WALLS;
 
     public enum Anchor { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT }
 
@@ -25,6 +27,12 @@ public final class BunkerClientConfig {
         b.pop();
         b.push("geiger");
         GEIGER_VOLUME = b.defineInRange("volume", 0.6, 0.0, 1.0);
+        b.pop();
+        b.push("highlight");
+        HIGHLIGHT_OPACITY = b.comment("Непрозрачность подсветки (рамки и маркеры недостающих блоков), 0–1.")
+                .defineInRange("opacity", 0.35, 0.0, 1.0);
+        HIGHLIGHT_THROUGH_WALLS = b.comment("Маркеры недостающих блоков видны сквозь стены (раньше было всегда — и всё светилось красным).")
+                .define("markersThroughWalls", false);
         b.pop();
         SPEC = b.build();
     }

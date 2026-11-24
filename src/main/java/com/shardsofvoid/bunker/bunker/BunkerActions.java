@@ -123,6 +123,7 @@ public final class BunkerActions {
     public static void forget(UUID player) {
         VIEWS.remove(player);
         RATE.remove(player);
+        BunkerPlanner.forget(player);
     }
 
     // ================================================================ открытие
@@ -176,6 +177,11 @@ public final class BunkerActions {
     // ================================================================ действия
 
     public static void handle(ServerPlayer player, BunkerActionPayload payload) {
+        if (BunkerPlanner.isPlanner(player.serverLevel(), payload.pos())) {
+            if (!payload.args().getString("a").equals("close") && rateLimited(player)) return;
+            BunkerPlanner.handle(player, payload);
+            return;
+        }
         CompoundTag args = payload.args();
         String action = args.getString("a");
         if (action.equals("close")) {
@@ -224,6 +230,7 @@ public final class BunkerActions {
                 m.sendHighlight(player, b, true);
             }
             case "upgrade" -> upgrade(player, t, v);
+            case "expand_tier" -> expandTier(player, t, v);
             case "lock" -> {
                 if (!t.room()) {
                     b.doorsLocked = !b.doorsLocked;
@@ -407,9 +414,7 @@ public final class BunkerActions {
             return Component.translatable("gui.bunker.upgrade.need_active");
         }
         if (!player.hasInfiniteMaterials()) {
-            for (BunkerUpgrades.Cost c : nextDef(t).cost()) {
-                if (c.countIn(player) < c.count()) return Component.translatable("gui.bunker.upgrade.not_enough");
-            }
+            if (!canPay(player, t.bunker(), nextDef(t).cost())) return Component.translatable("gui.bunker.upgrade.not_enough");
         }
         return null;
     }
@@ -423,8 +428,10 @@ public final class BunkerActions {
         }
         Bunker b = t.bunker();
         BunkerUpgrades.LevelDef def = nextDef(t);
-        if (!player.hasInfiniteMaterials()) {
-            for (BunkerUpgrades.Cost c : def.cost()) take(player, c);
+        if (!pay(player, b, def.cost())) {
+            v.message = Component.translatable("gui.bunker.upgrade.not_enough");
+            v.messageOk = false;
+            return;
         }
         if (t.room()) {
             t.manager().setRoomLevel(b, t.pos(), def.level());
@@ -436,18 +443,81 @@ public final class BunkerActions {
         v.messageOk = true;
     }
 
-    private static void take(ServerPlayer player, BunkerUpgrades.Cost cost) {
-        int left = cost.count();
-        var inv = player.getInventory();
-        for (int i = 0; i < inv.getContainerSize() && left > 0; i++) {
-            ItemStack s = inv.getItem(i);
-            if (!s.isEmpty() && cost.test(s)) {
-                int n = Math.min(left, s.getCount());
-                s.shrink(n);
-                left -= n;
+    /** Хватает ли у игрока и в хранилищах бункера на все позиции стоимости. */
+    static boolean canPay(ServerPlayer player, Bunker b, List<BunkerUpgrades.Cost> cost) {
+        if (player.hasInfiniteMaterials()) return true;
+        for (BunkerUpgrades.Cost c : cost) {
+            if (BunkerStorage.count(player, player.serverLevel(), b, c::test) < c.count()) return false;
+        }
+        return true;
+    }
+
+    /** Списать стоимость из инвентаря и хранилищ бункера целиком; не хватило — всё возвращается. */
+    static boolean pay(ServerPlayer player, Bunker b, List<BunkerUpgrades.Cost> cost) {
+        if (player.hasInfiniteMaterials()) return true;
+        List<ItemStack> taken = new ArrayList<>();
+        for (BunkerUpgrades.Cost c : cost) {
+            if (!BunkerStorage.take(player, player.serverLevel(), b, c::test, c.count(), taken)) {
+                BunkerStorage.giveAll(player, player.serverLevel(), b, taken, player.blockPosition(),
+                        BunkerStorage.handlers(player.serverLevel(), b));
+                return false;
             }
         }
-        inv.setChanged();
+        return true;
+    }
+
+    // ================================================================ улучшение расширений
+
+    public static List<BunkerUpgrades.Cost> tierCost(Bunker b) {
+        List<? extends Integer> costs = BunkerConfig.EXPANSION_TIER_COST.get();
+        if (b.expansionTier >= costs.size()) return List.of();
+        var item = BuiltInRegistries.ITEM.getOptional(net.minecraft.resources.ResourceLocation.parse(BunkerConfig.EXPANSION_TIER_ITEM.get()))
+                .orElse(net.minecraft.world.item.Items.NETHERITE_INGOT);
+        return List.of(new BunkerUpgrades.Cost(java.util.Optional.of(item), java.util.Optional.empty(), costs.get(b.expansionTier)));
+    }
+
+    @Nullable
+    private static Component tierBlocker(ServerPlayer player, Bunker b) {
+        if (b.level < 3) return Component.translatable("gui.bunker.tier.need_core3");
+        if (b.expansionTier >= BunkerManager.maxTier()) return Component.translatable("gui.bunker.tier.max");
+        if (!canPay(player, b, tierCost(b))) return Component.translatable("gui.bunker.upgrade.not_enough");
+        return null;
+    }
+
+    private static void expandTier(ServerPlayer player, Target t, View v) {
+        Bunker b = t.bunker();
+        Component blocker = tierBlocker(player, b);
+        if (blocker == null && !pay(player, b, tierCost(b))) blocker = Component.translatable("gui.bunker.upgrade.not_enough");
+        if (blocker != null) {
+            v.message = blocker;
+            v.messageOk = false;
+            return;
+        }
+        b.expansionTier++;
+        t.manager().markDirty();
+        player.serverLevel().playSound(null, t.pos(), SoundEvents.NETHERITE_BLOCK_PLACE, SoundSource.BLOCKS, 1.0F, 0.8F);
+        v.message = Component.translatable("message.bunker.tier.done", b.expansionTier, BunkerManager.maxTier(),
+                BunkerManager.maxHorizontal(b));
+        v.messageOk = true;
+    }
+
+    private static void writeTier(CompoundTag d, ServerPlayer player, Bunker b, HolderLookup.Provider reg) {
+        d.putInt("tier", b.expansionTier);
+        d.putInt("tierMax", BunkerManager.maxTier());
+        Component blocker = tierBlocker(player, b);
+        d.putBoolean("canTier", blocker == null);
+        List<BunkerUpgrades.Cost> cost = tierCost(b);
+        Component info;
+        if (cost.isEmpty()) {
+            info = Component.translatable("gui.bunker.tier.max");
+        } else {
+            BunkerUpgrades.Cost c = cost.get(0);
+            int have = player.hasInfiniteMaterials() ? c.count() : BunkerStorage.count(player, player.serverLevel(), b, c::test);
+            info = Component.translatable("gui.bunker.tier.info", c.count(), c.displayStack().getHoverName(), have,
+                    BunkerConfig.EXPANSION_TIER_BUDGET.get(), BunkerConfig.EXPANSION_TIER_HORIZONTAL.get());
+            if (blocker != null) info = Component.empty().append(blocker).append(" · ").append(info);
+        }
+        d.putString("tierInfo", json(info, reg));
     }
 
     private static String romanOf(int level) {
@@ -492,7 +562,7 @@ public final class BunkerActions {
                     life.putBoolean("enabled", BunkerConfig.LIFE_SUPPORT_ENABLED.get());
                     d.put("life", life);
                 }
-                case TAB_SIZE -> writeSize(d, t, v, reg);
+                case TAB_SIZE -> writeSize(d, player, t, v, reg);
                 default -> writeOverview(d, player, t, reg);
             }
         }
@@ -535,7 +605,7 @@ public final class BunkerActions {
                 CompoundTag ct = new CompoundTag();
                 ct.putString("item", BuiltInRegistries.ITEM.getKey(shown.getItem()).toString());
                 ct.putInt("count", c.count());
-                ct.putInt("have", player.hasInfiniteMaterials() ? c.count() : c.countIn(player));
+                ct.putInt("have", player.hasInfiniteMaterials() ? c.count() : BunkerStorage.count(player, player.serverLevel(), t.bunker(), c::test));
                 cost.add(ct);
             }
             d.put("cost", cost);
@@ -597,7 +667,7 @@ public final class BunkerActions {
         }
     }
 
-    private static void writeSize(CompoundTag d, Target t, View v, HolderLookup.Provider reg) {
+    private static void writeSize(CompoundTag d, ServerPlayer player, Target t, View v, HolderLookup.Provider reg) {
         Bunker b = t.bunker();
         Area area = t.area();
         Area draft = draftArea(area, v.draft);
@@ -606,8 +676,9 @@ public final class BunkerActions {
         d.putBoolean("changed", v.draft != null);
         d.putInt("budget", BunkerManager.expansionBudget(b, area));
         d.putInt("used", draft.expansionUsed());
-        d.putInt("maxH", BunkerConfig.AREA_MAX_HORIZONTAL.get());
-        d.putInt("maxV", BunkerConfig.AREA_MAX_VERTICAL.get());
+        d.putInt("maxH", BunkerManager.maxHorizontal(b));
+        d.putInt("maxV", BunkerManager.maxVertical(b));
+        writeTier(d, player, b, reg);
         d.putString("curSize", area.sizeText());
         d.putString("draftSize", draft.sizeText());
         d.putInt("curFe", EnergySystem.areaCost(area));

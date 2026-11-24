@@ -14,6 +14,8 @@
     "bunker:bunker_door",
     "bunker:bunker_hatch",
     "bunker:bunker_power_inlet",
-    "bunker:air_filter_unit"
+    "bunker:air_filter_unit",
+    "bunker:metal_recycler",
+    "bunker:bunker_planner"
   ]
 }

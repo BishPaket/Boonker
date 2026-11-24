@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "bunker:block/bunker_planner"
+    },
+    "facing=east": {
+      "model": "bunker:block/bunker_planner",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "bunker:block/bunker_planner",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "bunker:block/bunker_planner",
+      "y": 270
+    }
+  }
+}

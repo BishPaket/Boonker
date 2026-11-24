@@ -46,6 +46,8 @@ public final class Bunker {
     public final Set<UUID> trusted = new HashSet<>();
     /** v3, 2.3: «Запереть гермодвери». */
     public boolean doorsLocked;
+    /** Улучшения расширений за незерит (доступны на ядре III): каждое даёт бюджет и предел размера по X/Z. */
+    public int expansionTier;
     /** v3, 8.3: воздух, %. */
     public double air = 100.0;
     /** v3, 4.2 / 10.1: время подключения энергоблоков к сети бункера (позиция → игровое время). */
@@ -74,12 +76,11 @@ public final class Bunker {
     public EnergyReport energy = EnergyReport.EMPTY;
     public boolean stationShed;
     public boolean purifierShed;
+    public boolean recyclerShed;
     public long lastRestore;
     public int playersInZone;
     public double airWearAccumulator;
-    public double waterAccumulator;
     public boolean warnedAir;
-    public boolean warnedWater;
     public boolean warnedFilter;
     /** Чистая вода бункера, mB (бак активной станции водоочистки), для HUD. */
     public int waterStock;
@@ -153,6 +154,7 @@ public final class Bunker {
         for (UUID t : trusted) trustList.add(StringTag.valueOf(t.toString()));
         tag.put("trusted", trustList);
         tag.putBoolean("doorsLocked", doorsLocked);
+        tag.putInt("expansionTier", expansionTier);
         tag.putDouble("air", air);
         CompoundTag conn = new CompoundTag();
         connectedAt.long2LongEntrySet().forEach(e -> conn.putLong(Long.toString(e.getLongKey()), e.getLongValue()));
@@ -191,6 +193,7 @@ public final class Bunker {
                 if (p.length == 3) b.pendingRooms.add(new BlockPos(p[0], p[1], p[2]));
             }
             b.doorsLocked = tag.getBoolean("doorsLocked");
+            b.expansionTier = tag.getInt("expansionTier");
             b.air = tag.contains("air") ? tag.getDouble("air") : 100.0;
             CompoundTag conn = tag.getCompound("connected");
             for (String key : conn.getAllKeys()) {

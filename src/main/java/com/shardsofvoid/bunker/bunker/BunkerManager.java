@@ -167,6 +167,19 @@ public final class BunkerManager {
         return zoneIndex.get(pos.asLong()) == b;
     }
 
+    /**
+     * Установка обслуживает бункер: стоит в защитном объёме или встроена в оболочку одной из его областей
+     * (станции можно ставить вместо стены — герметичность не ломается, блоки входят в тег shell_blocks).
+     */
+    public boolean servesZone(Bunker b, BlockPos pos) {
+        if (inZone(b, pos)) return true;
+        if (b.zone == null || !b.isActive()) return false;
+        for (Area a : b.areas()) {
+            if (a.isShell(pos.getX(), pos.getY(), pos.getZ())) return true;
+        }
+        return false;
+    }
+
     public record Located(ServerLevel level, Bunker bunker) {}
 
     @Nullable
@@ -683,6 +696,11 @@ public final class BunkerManager {
         structureChanged(b);
     }
 
+    /** Комната, построенная пультом проектирования: блок комнаты уже стоит в anchor. */
+    public void attachBuiltRoom(Bunker b, Area area, int roomLevel, @Nullable ServerPlayer player) {
+        attachRoom(b, area, roomLevel, player);
+    }
+
     /** Подтвердить вариант размещения. */
     @Nullable
     public Component confirmPlacement(Bunker b, BlockPos pos, int variant, ServerPlayer player) {
@@ -719,7 +737,30 @@ public final class BunkerManager {
     // ================================================================ размер области (v3 1.3, 1.6)
 
     public static int expansionBudget(Bunker b, Area a) {
-        return a == b.coreArea ? BunkerUpgrades.core(b.level).expansion() : BunkerUpgrades.room(a.level).expansion();
+        int base = a == b.coreArea ? BunkerUpgrades.core(b.level).expansion() : BunkerUpgrades.room(a.level).expansion();
+        return base + activeTier(b) * BunkerConfig.EXPANSION_TIER_BUDGET.get();
+    }
+
+    /** Бюджет новой комнаты заданного уровня (пульт проектирования). */
+    public static int roomBudget(Bunker b, int roomLevel) {
+        return BunkerUpgrades.room(roomLevel).expansion() + activeTier(b) * BunkerConfig.EXPANSION_TIER_BUDGET.get();
+    }
+
+    /** Улучшения расширений действуют, пока ядро на III уровне. */
+    public static int activeTier(Bunker b) {
+        return b.level >= 3 ? Math.min(b.expansionTier, maxTier()) : 0;
+    }
+
+    public static int maxTier() {
+        return BunkerConfig.EXPANSION_TIER_COST.get().size();
+    }
+
+    public static int maxHorizontal(Bunker b) {
+        return BunkerConfig.AREA_MAX_HORIZONTAL.get() + activeTier(b) * BunkerConfig.EXPANSION_TIER_HORIZONTAL.get();
+    }
+
+    public static int maxVertical(Bunker b) {
+        return BunkerConfig.AREA_MAX_VERTICAL.get();
     }
 
     /**
@@ -731,8 +772,8 @@ public final class BunkerManager {
     public Component checkBounds(Bunker b, Area area, int[] nb) {
         Area test = area.copy();
         test.setBounds(nb);
-        int maxH = BunkerConfig.AREA_MAX_HORIZONTAL.get();
-        int maxV = BunkerConfig.AREA_MAX_VERTICAL.get();
+        int maxH = maxHorizontal(b);
+        int maxV = maxVertical(b);
         if (test.innerX() < Area.BASE_INNER || test.innerY() < Area.BASE_INNER || test.innerZ() < Area.BASE_INNER) {
             return Component.translatable("message.bunker.size.too_small");
         }

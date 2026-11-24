@@ -9,7 +9,8 @@ public enum MachineKind {
     POWER_INLET(false),
     SUIT_STATION(false),
     AIR_FILTER_UNIT(false),
-    WATER_PURIFIER(false);
+    WATER_PURIFIER(false),
+    METAL_RECYCLER(false);
 
     public final boolean generator;
 

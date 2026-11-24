@@ -69,6 +69,7 @@ public class MachineMenu extends AbstractContainerMenu {
         return switch (kind) {
             case FURNACE_GENERATOR, AIR_FILTER_UNIT -> new int[][]{{26, 35}};
             case WATER_PURIFIER -> new int[][]{{26, 53}};
+            case METAL_RECYCLER -> new int[][]{{44, 35}, {116, 26}, {134, 26}, {116, 44}, {134, 44}};
             case CELL_RACK -> new int[][]{{26, 26}, {44, 26}, {26, 44}, {44, 44}};
             case SUIT_STATION -> new int[][]{{26, 8}, {26, 26}, {26, 44}, {26, 62}, {62, 62}};
             default -> new int[0][];

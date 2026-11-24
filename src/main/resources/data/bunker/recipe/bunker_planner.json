@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "MGM",
+    "RPR",
+    "MCM"
+  ],
+  "key": {
+    "M": {
+      "item": "bunker:bunker_metal"
+    },
+    "G": {
+      "tag": "c:glass_panes"
+    },
+    "R": {
+      "item": "minecraft:redstone"
+    },
+    "P": {
+      "item": "minecraft:map"
+    },
+    "C": {
+      "item": "minecraft:comparator"
+    }
+  },
+  "result": {
+    "id": "bunker:bunker_planner",
+    "count": 1
+  }
+}

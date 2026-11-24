@@ -5,6 +5,8 @@
     "bunker:bunker_battery",
     "bunker:cell_rack",
     "bunker:suit_station",
-    "bunker:water_purifier"
+    "bunker:water_purifier",
+    "bunker:metal_recycler",
+    "bunker:bunker_planner"
   ]
 }

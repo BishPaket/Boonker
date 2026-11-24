@@ -74,6 +74,12 @@ public final class ModMachines {
             ModBlocks.bunkerProperties());
     public static final DeferredBlock<MachineBlock> WATER_PURIFIER = machine("water_purifier", MachineKind.WATER_PURIFIER, machine());
 
+    public static final DeferredBlock<MachineBlock> METAL_RECYCLER = machine("metal_recycler", MachineKind.METAL_RECYCLER, machine());
+
+    // ---------------------------------------------------------------- пульт проектирования
+    public static final DeferredBlock<com.shardsofvoid.bunker.block.BunkerPlannerBlock> BUNKER_PLANNER = ModBlocks.BLOCKS.registerBlock(
+            "bunker_planner", com.shardsofvoid.bunker.block.BunkerPlannerBlock::new, machine());
+
     private static DeferredBlock<MachineBlock> machine(String name, MachineKind kind, BlockBehaviour.Properties props) {
         return ModBlocks.BLOCKS.registerBlock(name, p -> new MachineBlock(kind, p), props);
     }
@@ -92,6 +98,9 @@ public final class ModMachines {
     public static final DeferredItem<BlockItem> SUIT_STATION_ITEM = ModItems.ITEMS.registerSimpleBlockItem("suit_station", SUIT_STATION);
     public static final DeferredItem<BlockItem> AIR_FILTER_UNIT_ITEM = ModItems.ITEMS.registerSimpleBlockItem("air_filter_unit", AIR_FILTER_UNIT);
     public static final DeferredItem<BlockItem> WATER_PURIFIER_ITEM = ModItems.ITEMS.registerSimpleBlockItem("water_purifier", WATER_PURIFIER);
+    public static final DeferredItem<BlockItem> METAL_RECYCLER_ITEM = ModItems.ITEMS.registerSimpleBlockItem("metal_recycler", METAL_RECYCLER);
+    public static final DeferredItem<com.shardsofvoid.bunker.item.BunkerPlannerItem> BUNKER_PLANNER_ITEM = ModItems.ITEMS.registerItem(
+            "bunker_planner", p -> new com.shardsofvoid.bunker.item.BunkerPlannerItem(BUNKER_PLANNER.get(), p));
 
     public static final DeferredItem<EnergyCellItem> ENERGY_CELL = ModItems.ITEMS.registerItem("energy_cell",
             p -> new EnergyCellItem(p.stacksTo(1)));
@@ -121,6 +130,9 @@ public final class ModMachines {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<WaterPurifierBlockEntity>> WATER_PURIFIER_BE =
             be("water_purifier", WaterPurifierBlockEntity::new, WATER_PURIFIER);
 
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<com.shardsofvoid.bunker.energy.MetalRecyclerBlockEntity>> METAL_RECYCLER_BE =
+            be("metal_recycler", com.shardsofvoid.bunker.energy.MetalRecyclerBlockEntity::new, METAL_RECYCLER);
+
     @SuppressWarnings("DataFlowIssue")
     private static <T extends BunkerMachineBlockEntity> DeferredHolder<BlockEntityType<?>, BlockEntityType<T>> be(
             String name, BlockEntityType.BlockEntitySupplier<T> factory, Supplier<? extends Block> block) {
@@ -137,6 +149,7 @@ public final class ModMachines {
             case SUIT_STATION -> new SuitStationBlockEntity(pos, state);
             case AIR_FILTER_UNIT -> new AirFilterUnitBlockEntity(pos, state);
             case WATER_PURIFIER -> new WaterPurifierBlockEntity(pos, state);
+            case METAL_RECYCLER -> new com.shardsofvoid.bunker.energy.MetalRecyclerBlockEntity(pos, state);
         };
     }
 
@@ -152,7 +165,7 @@ public final class ModMachines {
     public static void creativeItems(net.minecraft.world.item.CreativeModeTab.Output out) {
         for (DeferredItem<? extends Item> item : List.of(BUNKER_DOOR_ITEM, BUNKER_HATCH_ITEM, POWER_CABLE_ITEM, FURNACE_GENERATOR_ITEM,
                 SOLAR_PANEL_ITEM, BATTERY_ITEM, CELL_RACK_ITEM, POWER_INLET_ITEM, SUIT_STATION_ITEM, AIR_FILTER_UNIT_ITEM,
-                WATER_PURIFIER_ITEM, ENERGY_CELL, ACTIVATED_CARBON, AIR_FILTER_CARTRIDGE, WATER_FILTER_CARTRIDGE, CLEAN_WATER_BOTTLE)) {
+                WATER_PURIFIER_ITEM, METAL_RECYCLER_ITEM, BUNKER_PLANNER_ITEM, ENERGY_CELL, ACTIVATED_CARBON, AIR_FILTER_CARTRIDGE, WATER_FILTER_CARTRIDGE, CLEAN_WATER_BOTTLE)) {
             out.accept(item.get());
         }
         ItemStack full = new ItemStack(ENERGY_CELL.get());

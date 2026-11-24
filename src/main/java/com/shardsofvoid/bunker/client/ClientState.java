@@ -17,7 +17,6 @@ public final class ClientState {
 
     /** v3 8.7 / 10.2: жизнеобеспечение бункера (−1 — вне зоны или выключено), текущая область. */
     public static int air = -1;
-    public static int water = -1;
     public static int areaIndex = -1;
     public static String areaName = "";
     public static boolean unpowered;
@@ -39,7 +38,6 @@ public final class ClientState {
         source = RadiationSource.NONE;
         hasData = false;
         air = -1;
-        water = -1;
         areaIndex = -1;
         areaName = "";
         unpowered = false;

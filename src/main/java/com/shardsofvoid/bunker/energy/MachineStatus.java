@@ -17,7 +17,9 @@ public enum MachineStatus {
     FULL,           // «Бак полон»
     OUTSIDE,        // «Вне защитной зоны»
     ROOM_OFF,       // «Комната отключена»
-    INACTIVE;       // «Бункер не активен»
+    INACTIVE,       // «Бункер не активен»
+    NO_INPUT,       // «Нет сырья»
+    OUTPUT_FULL;    // «Выход заполнен»
 
     private static final MachineStatus[] VALUES = values();
 

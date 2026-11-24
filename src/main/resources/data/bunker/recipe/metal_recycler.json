@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "MGM",
+    "IBI",
+    "MKM"
+  ],
+  "key": {
+    "M": {
+      "item": "bunker:bunker_metal"
+    },
+    "G": {
+      "item": "minecraft:grindstone"
+    },
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "B": {
+      "item": "minecraft:blast_furnace"
+    },
+    "K": {
+      "item": "bunker:power_cable"
+    }
+  },
+  "result": {
+    "id": "bunker:metal_recycler",
+    "count": 1
+  }
+}
