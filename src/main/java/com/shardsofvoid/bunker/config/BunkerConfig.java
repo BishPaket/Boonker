@@ -20,6 +20,7 @@ public final class BunkerConfig {
     public static final ModConfigSpec.BooleanValue RADIATION_DECAY_IN_BUNKER;
     public static final ModConfigSpec.DoubleValue RADIATION_BUNKER_DECAY_RATE;
     public static final ModConfigSpec.BooleanValue RADIATION_GEIGER_SOUND;
+    public static final ModConfigSpec.ConfigValue<String> RADIATION_GEIGER_ITEM;
     public static final ModConfigSpec.DoubleValue RADIATION_MAX_DOSE;
     public static final ModConfigSpec.ConfigValue<List<? extends Double>> RADIATION_STAGE_THRESHOLDS;
     public static final ModConfigSpec.ConfigValue<List<? extends String>> RADIATION_DEPTH_MULTIPLIERS;
@@ -153,6 +154,9 @@ public final class BunkerConfig {
                 .defineInRange("bunkerDecayRate", 0.5, 0.0, 1000.0);
         RADIATION_GEIGER_SOUND = b.comment("Звук счётчика Гейгера на клиенте.")
                 .define("geigerSound", true);
+        RADIATION_GEIGER_ITEM = b.comment("Щелчки слышны, только если этот предмет есть в инвентаре (счётчик Гейгера Wastelands).",
+                        "Пустая строка — слышны всегда.")
+                .define("geigerItem", "wastelands:geiger_counter");
         RADIATION_MAX_DOSE = b.comment("[доп.] Максимум дозы. 100 совпадает со шкалой Wastelands.")
                 .defineInRange("maxDose", 100.0, 1.0, 100000.0);
         RADIATION_STAGE_THRESHOLDS = b.comment("[доп.] Пороги стадий I–IV в долях от максимума.")

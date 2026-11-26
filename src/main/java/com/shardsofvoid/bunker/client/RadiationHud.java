@@ -32,7 +32,12 @@ public final class RadiationHud {
         int x = BunkerClientConfig.HUD_OFFSET_X.get();
         int y = BunkerClientConfig.HUD_OFFSET_Y.get();
         switch (BunkerClientConfig.HUD_ANCHOR.get()) {
-            case TOP_RIGHT -> x = g.guiWidth() - WIDTH - x;
+            case TOP_RIGHT -> {
+                x = g.guiWidth() - WIDTH - x;
+                if (BunkerClientConfig.HUD_AVOID_MINIMAP.get() && MinimapCompat.present()) {
+                    y = Math.max(y, BunkerClientConfig.HUD_MINIMAP_CLEARANCE.get());
+                }
+            }
             case BOTTOM_LEFT -> y = g.guiHeight() - height - y;
             case BOTTOM_RIGHT -> {
                 x = g.guiWidth() - WIDTH - x;
