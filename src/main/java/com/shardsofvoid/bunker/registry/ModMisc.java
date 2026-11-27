@@ -28,6 +28,26 @@ public final class ModMisc {
             com.mojang.serialization.MapCodec<com.shardsofvoid.bunker.loot.AddPartialItemModifier>> ADD_PARTIAL_ITEM =
             LOOT_MODIFIERS.register("add_partial_item", () -> com.shardsofvoid.bunker.loot.AddPartialItemModifier.CODEC);
 
+    public static final DeferredRegister<net.minecraft.world.level.storage.loot.entries.LootPoolEntryType> LOOT_ENTRIES =
+            DeferredRegister.create(net.minecraft.core.registries.Registries.LOOT_POOL_ENTRY_TYPE, BunkerMod.MODID);
+    public static final DeferredRegister<net.minecraft.world.level.storage.loot.functions.LootItemFunctionType<?>> LOOT_FUNCTIONS =
+            DeferredRegister.create(net.minecraft.core.registries.Registries.LOOT_FUNCTION_TYPE, BunkerMod.MODID);
+    public static final DeferredRegister<net.minecraft.world.level.levelgen.feature.Feature<?>> FEATURES =
+            DeferredRegister.create(net.minecraft.core.registries.Registries.FEATURE, BunkerMod.MODID);
+
+    public static final DeferredHolder<net.minecraft.world.level.storage.loot.entries.LootPoolEntryType,
+            net.minecraft.world.level.storage.loot.entries.LootPoolEntryType> SOFT_ITEM_ENTRY = LOOT_ENTRIES.register("soft_item",
+            () -> new net.minecraft.world.level.storage.loot.entries.LootPoolEntryType(com.shardsofvoid.bunker.loot.SoftItemEntry.CODEC));
+    public static final DeferredHolder<net.minecraft.world.level.storage.loot.entries.LootPoolEntryType,
+            net.minecraft.world.level.storage.loot.entries.LootPoolEntryType> TACZ_ENTRY = LOOT_ENTRIES.register("tacz",
+            () -> new net.minecraft.world.level.storage.loot.entries.LootPoolEntryType(com.shardsofvoid.bunker.loot.TaczEntry.CODEC));
+    public static final DeferredHolder<net.minecraft.world.level.storage.loot.functions.LootItemFunctionType<?>,
+            net.minecraft.world.level.storage.loot.functions.LootItemFunctionType<com.shardsofvoid.bunker.loot.SetCustomIntFunction>> SET_CUSTOM_INT =
+            LOOT_FUNCTIONS.register("set_custom_int",
+                    () -> new net.minecraft.world.level.storage.loot.functions.LootItemFunctionType<>(com.shardsofvoid.bunker.loot.SetCustomIntFunction.CODEC));
+    public static final DeferredHolder<net.minecraft.world.level.levelgen.feature.Feature<?>, com.shardsofvoid.bunker.worldgen.BrokenBunkerFeature> BROKEN_BUNKER =
+            FEATURES.register("broken_bunker", com.shardsofvoid.bunker.worldgen.BrokenBunkerFeature::new);
+
     public static final DeferredHolder<SoundEvent, SoundEvent> GEIGER_CLICK = SOUNDS.register("geiger_click",
             () -> SoundEvent.createVariableRangeEvent(BunkerMod.id("geiger_click")));
     public static final DeferredHolder<SoundEvent, SoundEvent> BUNKER_BREACH = SOUNDS.register("bunker_breach",

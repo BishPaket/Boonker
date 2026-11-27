@@ -1,0 +1,452 @@
+{
+  "type": "minecraft:chest",
+  "random_sequence": "bunker:chests/broken_bunker",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "bunker:soft_item",
+          "name": "wastelands:scrap_metal",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 20,
+                "max": 64
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "bunker:soft_item",
+          "name": "wastelands:canned_food",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 3,
+                "max": 9
+              }
+            }
+          ]
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:random_chance",
+          "chance": 0.6
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "bunker:soft_item",
+          "name": "wastelands:purified_water",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 3
+              }
+            }
+          ]
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:random_chance",
+          "chance": 0.5
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "bunker:soft_item",
+          "name": "firstaid:bandage",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 2
+              }
+            }
+          ]
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:random_chance",
+          "chance": 0.6
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "bunker:soft_item",
+          "name": "firstaid:adrenaline_injector",
+          "weight": 1
+        },
+        {
+          "type": "bunker:soft_item",
+          "name": "firstaid:morphine_injector",
+          "weight": 1
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:random_chance",
+          "chance": 0.05
+        }
+      ]
+    },
+    {
+      "rolls": {
+        "type": "minecraft:uniform",
+        "min": 1,
+        "max": 3
+      },
+      "entries": [
+        {
+          "type": "bunker:tacz",
+          "kind": "ammo",
+          "min": 12,
+          "max": 40
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:random_chance",
+          "chance": 0.7
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "bunker:tacz",
+          "kind": "gun",
+          "weights": {
+            "pistol": 70,
+            "smg": 15,
+            "shotgun": 5,
+            "rifle": 5,
+            "mg": 1.5,
+            "dmr": 1.5,
+            "sniper": 1.5,
+            "rpg": 0.5
+          }
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:random_chance",
+          "chance": 0.03
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "bunker:tacz",
+          "kind": "attachment"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:random_chance",
+          "chance": 0.25
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "bunker:soft_item",
+          "name": "tobacconery:cigarette_pack",
+          "weight": 6,
+          "functions": [
+            {
+              "function": "bunker:set_custom_int",
+              "key": "Cigarettes",
+              "value": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 20
+              }
+            }
+          ]
+        },
+        {
+          "type": "bunker:soft_item",
+          "name": "tobacconery:menthol_cigarette_pack",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "bunker:set_custom_int",
+              "key": "Cigarettes",
+              "value": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 20
+              }
+            }
+          ]
+        },
+        {
+          "type": "bunker:soft_item",
+          "name": "tobacconery:strong_cigarette_pack",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "bunker:set_custom_int",
+              "key": "Cigarettes",
+              "value": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 20
+              }
+            }
+          ]
+        },
+        {
+          "type": "bunker:soft_item",
+          "name": "tobacconery:fruit_cigarette_pack",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "bunker:set_custom_int",
+              "key": "Cigarettes",
+              "value": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 20
+              }
+            }
+          ]
+        },
+        {
+          "type": "bunker:soft_item",
+          "name": "tobacconery:blueberry_cigarette_pack",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "bunker:set_custom_int",
+              "key": "Cigarettes",
+              "value": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 20
+              }
+            }
+          ]
+        },
+        {
+          "type": "bunker:soft_item",
+          "name": "tobacconery:fire_cigarette_pack",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "bunker:set_custom_int",
+              "key": "Cigarettes",
+              "value": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 20
+              }
+            }
+          ]
+        },
+        {
+          "type": "bunker:soft_item",
+          "name": "tobacconery:jumper_cigarette_pack",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "bunker:set_custom_int",
+              "key": "Cigarettes",
+              "value": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 20
+              }
+            }
+          ]
+        },
+        {
+          "type": "bunker:soft_item",
+          "name": "tobacconery:turtle_cigarette_pack",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "bunker:set_custom_int",
+              "key": "Cigarettes",
+              "value": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 20
+              }
+            }
+          ]
+        },
+        {
+          "type": "bunker:soft_item",
+          "name": "tobacconery:sabbath_cigarette_pack",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "bunker:set_custom_int",
+              "key": "Cigarettes",
+              "value": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 20
+              }
+            }
+          ]
+        },
+        {
+          "type": "bunker:soft_item",
+          "name": "tobacconery:death_cigarette_pack",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "bunker:set_custom_int",
+              "key": "Cigarettes",
+              "value": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 20
+              }
+            }
+          ]
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:random_chance",
+          "chance": 0.25
+        }
+      ]
+    },
+    {
+      "rolls": {
+        "type": "minecraft:uniform",
+        "min": 1,
+        "max": 3
+      },
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:iron_nugget",
+          "weight": 3,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 2,
+                "max": 9
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:paper",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 4
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:string",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 5
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:candle",
+          "weight": 1
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:copper_ingot",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 3
+              }
+            }
+          ]
+        },
+        {
+          "type": "bunker:soft_item",
+          "name": "bunker:broken_bunker_metal",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 4
+              }
+            }
+          ]
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:random_chance",
+          "chance": 0.7
+        }
+      ]
+    }
+  ]
+}

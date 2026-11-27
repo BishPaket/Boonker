@@ -96,6 +96,9 @@ public final class BunkerMod {
         ModMachines.init();
         ModMachines.MENUS.register(modBus);
         ModMisc.LOOT_MODIFIERS.register(modBus);
+        ModMisc.LOOT_ENTRIES.register(modBus);
+        ModMisc.LOOT_FUNCTIONS.register(modBus);
+        ModMisc.FEATURES.register(modBus);
         modBus.addListener(RegisterCapabilitiesEvent.class, BunkerMod::registerCapabilities);
 
         modBus.addListener(RegisterPayloadHandlersEvent.class, ModNetwork::register);
