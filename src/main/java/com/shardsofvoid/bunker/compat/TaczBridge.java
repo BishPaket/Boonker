@@ -91,11 +91,29 @@ public final class TaczBridge {
         return keys.isEmpty() ? null : keys.get(random.nextInt(keys.size()));
     }
 
-    /** Случайные патроны любого калибра. */
-    public static ItemStack randomAmmo(RandomSource random, int count) {
+    /** Боеприпасы гранатомётов: патроны всех стволов типа rpg (ракеты, 40-мм гранаты и т. п.). */
+    private static java.util.Set<ResourceLocation> launcherAmmo() throws ReflectiveOperationException {
+        java.util.Set<ResourceLocation> out = new java.util.HashSet<>();
+        for (Map.Entry<ResourceLocation, Object> e : index("getAllCommonGunIndex")) {
+            Object idx = e.getValue();
+            if (!"rpg".equalsIgnoreCase(String.valueOf(idx.getClass().getMethod("getType").invoke(idx)))) continue;
+            Object data = idx.getClass().getMethod("getGunData").invoke(idx);
+            Object ammo = data.getClass().getMethod("getAmmoId").invoke(data);
+            if (ammo instanceof ResourceLocation rl) out.add(rl);
+        }
+        return out;
+    }
+
+    /** Случайные патроны: launcher = false — любой калибр, кроме гранатомётного; true — только гранатомётные. */
+    public static ItemStack randomAmmo(RandomSource random, int count, boolean launcher) {
         if (!available()) return ItemStack.EMPTY;
         try {
-            ResourceLocation id = randomKey("getAllCommonAmmoIndex", random);
+            java.util.Set<ResourceLocation> heavy = launcherAmmo();
+            List<ResourceLocation> keys = new ArrayList<>();
+            for (Map.Entry<ResourceLocation, Object> e : index("getAllCommonAmmoIndex")) {
+                if (heavy.contains(e.getKey()) == launcher) keys.add(e.getKey());
+            }
+            ResourceLocation id = keys.isEmpty() ? null : keys.get(random.nextInt(keys.size()));
             if (id == null) return ItemStack.EMPTY;
             Class<?> c = cls("com.tacz.guns.api.item.builder.AmmoItemBuilder");
             Object b = c.getMethod("create").invoke(null);

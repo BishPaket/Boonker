@@ -21,7 +21,8 @@ import net.minecraft.world.level.storage.loot.predicates.LootItemCondition;
 
 /**
  * Предметы TACZ из всех ганпаков. kind: gun — оружие, тип по весам weights (pistol, smg, rifle, shotgun, dmr, mg,
- * sniper, rpg); ammo — патроны случайного калибра (min..max штук); attachment — случайный обвес.
+ * sniper, rpg); ammo — патроны случайного калибра, кроме гранатомётных (min..max штук); launcher_ammo — только
+ * гранатомётные (ракеты, гранаты); attachment — случайный обвес.
  */
 public final class TaczEntry extends LootPoolSingletonContainer {
     public static final MapCodec<TaczEntry> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
@@ -55,7 +56,8 @@ public final class TaczEntry extends LootPoolSingletonContainer {
         RandomSource r = context.getRandom();
         ItemStack stack = switch (kind) {
             case "gun" -> gun(r);
-            case "ammo" -> TaczBridge.randomAmmo(r, min + (max > min ? r.nextInt(max - min + 1) : 0));
+            case "ammo" -> TaczBridge.randomAmmo(r, min + (max > min ? r.nextInt(max - min + 1) : 0), false);
+            case "launcher_ammo" -> TaczBridge.randomAmmo(r, min + (max > min ? r.nextInt(max - min + 1) : 0), true);
             case "attachment" -> TaczBridge.randomAttachment(r);
             default -> ItemStack.EMPTY;
         };

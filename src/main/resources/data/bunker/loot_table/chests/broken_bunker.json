@@ -147,6 +147,23 @@
       "entries": [
         {
           "type": "bunker:tacz",
+          "kind": "launcher_ammo",
+          "min": 1,
+          "max": 1
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:random_chance",
+          "chance": 0.1
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "bunker:tacz",
           "kind": "gun",
           "weights": {
             "pistol": 70,
@@ -178,7 +195,7 @@
       "conditions": [
         {
           "condition": "minecraft:random_chance",
-          "chance": 0.25
+          "chance": 0.03
         }
       ]
     },
