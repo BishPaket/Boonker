@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:is_overworld",
+    {
+      "id": "#wastelands:is_wasteland",
+      "required": false
+    }
+  ]
+}
