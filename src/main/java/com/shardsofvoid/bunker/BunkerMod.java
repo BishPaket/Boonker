@@ -130,6 +130,7 @@ public final class BunkerMod {
         game.addListener(ChunkEvent.Load.class, BunkerEvents::onChunkLoad);
         game.addListener(LevelTickEvent.Post.class, BunkerEvents::onLevelTick);
         game.addListener(LevelEvent.Unload.class, BunkerEvents::onLevelUnload);
+        game.addListener(net.neoforged.neoforge.event.server.ServerStartedEvent.class, SelfTest::onServerStarted);
         game.addListener(PlayerEvent.PlayerLoggedOutEvent.class, e -> BunkerActions.forget(e.getEntity().getUUID()));
         game.addListener(AnvilUpdateEvent.class, BunkerEvents::onAnvilUpdate);
 

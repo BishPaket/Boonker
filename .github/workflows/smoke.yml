@@ -17,13 +17,13 @@ jobs:
         run: |
           mkdir -p run
           echo "eula=true" > run/eula.txt
-          printf 'level-type=minecraft\\:flat\nonline-mode=false\nspawn-protection=0\n' > run/server.properties
+          printf 'online-mode=false\nspawn-protection=0\n' > run/server.properties
       - name: Start dedicated server and wait for "Done"
         run: |
-          ./gradlew runServer > server.log 2>&1 &
+          BUNKER_SELFTEST=1 ./gradlew runServer > server.log 2>&1 &
           PID=$!
           for i in $(seq 1 180); do
-            if grep -q 'Done (' server.log; then echo "server started"; break; fi
+            if grep -q 'BUNKER_SELFTEST loot' server.log; then echo "selftest done"; break; fi
             if ! kill -0 $PID 2>/dev/null; then echo "server exited"; break; fi
             sleep 5
           done
@@ -35,6 +35,7 @@ jobs:
         if: always()
         run: |
           echo "=== started? ==="; grep -c 'Done (' server.log || true
+          echo "=== selftest ==="; grep 'BUNKER_SELFTEST' server.log | sed 's/.*BUNKER_SELFTEST/BUNKER_SELFTEST/' || true
           echo "=== errors/warnings mentioning bunker ==="
           grep -iE 'error|exception|failed|couldn.t|invalid|unknown' server.log | grep -iE 'bunker|mixin|loot|recipe|tag|damage' | head -120 || true
           echo "=== tail ==="; tail -60 server.log
