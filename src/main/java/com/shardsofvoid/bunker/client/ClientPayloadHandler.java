@@ -56,7 +56,7 @@ public final class ClientPayloadHandler {
 
     public static void handleHighlight(HighlightPayload p) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null) return;
+        if (mc.level == null || ClientState.highlightMuted) return;
         ClientState.boxes = p.boxes();
         ClientState.missing = p.missing();
         ClientState.allowed = p.allowed();
@@ -65,6 +65,11 @@ public final class ClientPayloadHandler {
 
     public static void handleScreen(BunkerScreenPayload p) {
         Minecraft mc = Minecraft.getInstance();
+        if (p.data().getBoolean("safezone")) {
+            if (mc.screen instanceof SafeZoneScreen screen && screen.pos().equals(p.pos())) screen.update(p.data());
+            else if (p.open()) mc.setScreen(new SafeZoneScreen(p.pos(), p.data()));
+            return;
+        }
         if (p.data().getBoolean("planner")) {
             if (mc.screen instanceof PlannerScreen screen && screen.pos().equals(p.pos())) screen.update(p.data());
             else if (p.open()) mc.setScreen(new PlannerScreen(p.pos(), p.data()));

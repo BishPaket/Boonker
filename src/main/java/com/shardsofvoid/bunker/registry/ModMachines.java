@@ -19,7 +19,6 @@ import com.shardsofvoid.bunker.energy.PowerInletBlockEntity;
 import com.shardsofvoid.bunker.energy.SolarPanelBlockEntity;
 import com.shardsofvoid.bunker.energy.SuitStationBlockEntity;
 import com.shardsofvoid.bunker.energy.WaterPurifierBlockEntity;
-import com.shardsofvoid.bunker.item.CleanWaterBottleItem;
 import com.shardsofvoid.bunker.item.EnergyCellItem;
 import com.shardsofvoid.bunker.item.FilterItem;
 import com.shardsofvoid.bunker.menu.MachineMenu;
@@ -109,8 +108,6 @@ public final class ModMachines {
             p -> new FilterItem(true, p.stacksTo(1)));
     public static final DeferredItem<FilterItem> WATER_FILTER_CARTRIDGE = ModItems.ITEMS.registerItem("water_filter_cartridge",
             p -> new FilterItem(false, p.stacksTo(1)));
-    public static final DeferredItem<CleanWaterBottleItem> CLEAN_WATER_BOTTLE = ModItems.ITEMS.registerItem("clean_water_bottle",
-            p -> new CleanWaterBottleItem(p.stacksTo(16)));
 
     // ---------------------------------------------------------------- блок-сущности
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<FurnaceGeneratorBlockEntity>> FURNACE_GENERATOR_BE =
@@ -165,7 +162,7 @@ public final class ModMachines {
     public static void creativeItems(net.minecraft.world.item.CreativeModeTab.Output out) {
         for (DeferredItem<? extends Item> item : List.of(BUNKER_DOOR_ITEM, BUNKER_HATCH_ITEM, POWER_CABLE_ITEM, FURNACE_GENERATOR_ITEM,
                 SOLAR_PANEL_ITEM, BATTERY_ITEM, CELL_RACK_ITEM, POWER_INLET_ITEM, SUIT_STATION_ITEM, AIR_FILTER_UNIT_ITEM,
-                WATER_PURIFIER_ITEM, METAL_RECYCLER_ITEM, BUNKER_PLANNER_ITEM, ENERGY_CELL, ACTIVATED_CARBON, AIR_FILTER_CARTRIDGE, WATER_FILTER_CARTRIDGE, CLEAN_WATER_BOTTLE)) {
+                WATER_PURIFIER_ITEM, METAL_RECYCLER_ITEM, BUNKER_PLANNER_ITEM, ENERGY_CELL, ACTIVATED_CARBON, AIR_FILTER_CARTRIDGE, WATER_FILTER_CARTRIDGE)) {
             out.accept(item.get());
         }
         ItemStack full = new ItemStack(ENERGY_CELL.get());

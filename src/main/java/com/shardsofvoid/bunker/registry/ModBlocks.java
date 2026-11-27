@@ -37,6 +37,16 @@ public final class ModBlocks {
     /** Бункерный металл — обычный блок; не горит и не падает по умолчанию, поршни не двигают. */
     public static final DeferredBlock<Block> BUNKER_METAL = BLOCKS.registerSimpleBlock("bunker_metal", bunkerProperties());
 
+    /** Блок безопасной зоны для администраторов: нерушимый, ставят операторы. */
+    public static final DeferredBlock<com.shardsofvoid.bunker.safezone.SafeZoneBlock> SAFE_ZONE = BLOCKS.registerBlock("safe_zone",
+            com.shardsofvoid.bunker.safezone.SafeZoneBlock::new, BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_LIGHT_GREEN)
+                    .strength(-1.0F, 3600000.0F).noLootTable().lightLevel(s -> 10).sound(SoundType.AMETHYST));
+
+    /** Сломанный бункерный металл из заброшенных бункеров: ломается обычной киркой, на станции очистки становится металлом. */
+    public static final DeferredBlock<Block> BROKEN_BUNKER_METAL = BLOCKS.registerSimpleBlock("broken_bunker_metal",
+            BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_GRAY).strength(4.0F, 6.0F).requiresCorrectToolForDrops()
+                    .sound(SoundType.NETHERITE_BLOCK));
+
     public static final DeferredBlock<BunkerCoreBlock> BUNKER_CORE = BLOCKS.registerBlock("bunker_core",
             BunkerCoreBlock::new, bunkerProperties().lightLevel(s -> 7));
 

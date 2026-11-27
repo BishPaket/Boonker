@@ -136,6 +136,7 @@ public class BunkerScreen extends Screen {
         left = (width - W) / 2;
         top = (height - H) / 2;
         renameBox = null;
+        boundsButton = null;
         hovers.clear();
 
         if (!placing()) {
@@ -180,7 +181,7 @@ public class BunkerScreen extends Screen {
 
     private void initOverview() {
         int y = bottomRow();
-        addRenderableWidget(Button.builder(Component.translatable("gui.bunker.button.bounds"), b -> send("bounds"))
+        boundsButton = addRenderableWidget(Button.builder(boundsLabel(), b -> toggleBounds())
                 .bounds(left + 6, y, 100, 20).build());
         Button upgrade = Button.builder(Component.translatable("gui.bunker.button.upgrade"), b -> send("upgrade"))
                 .bounds(left + 110, y, 100, 20).build();
@@ -205,6 +206,29 @@ public class BunkerScreen extends Screen {
             rename.setTooltip(Tooltip.create(Component.translatable("gui.bunker.button.rename")));
             addRenderableWidget(rename);
         }
+    }
+
+    @Nullable
+    private Button boundsButton;
+
+    private static Component boundsLabel() {
+        return Component.translatable(ClientState.highlightVisible() ? "gui.bunker.button.hide_bounds" : "gui.bunker.button.bounds");
+    }
+
+    /** Показать границы или скрыть контур (сам он гаснет только по таймеру). */
+    private void toggleBounds() {
+        if (ClientState.highlightVisible()) {
+            ClientState.hideHighlight();
+        } else {
+            ClientState.highlightMuted = false;
+            send("bounds");
+        }
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (boundsButton != null) boundsButton.setMessage(boundsLabel());
     }
 
     private static CompoundTag confirmArgs(boolean confirm) {

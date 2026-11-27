@@ -58,6 +58,8 @@ public final class BunkerConfig {
     public static final ModConfigSpec.IntValue BUNKER_VALIDATION_INTERVAL;
     public static final ModConfigSpec.IntValue BUNKER_VALIDATIONS_PER_TICK;
     public static final ModConfigSpec.IntValue BUNKER_HIGHLIGHT_SECONDS;
+    public static final ModConfigSpec.IntValue SAFE_ZONE_DEFAULT_RADIUS;
+    public static final ModConfigSpec.IntValue SAFE_ZONE_MAX_RADIUS;
 
     // bunkerMetal
     public static final ModConfigSpec.BooleanValue BUNKER_METAL_OWNER_ONLY_BREAK;
@@ -100,6 +102,9 @@ public final class BunkerConfig {
     public static final ModConfigSpec.IntValue ENERGY_PURIFIER;
     public static final ModConfigSpec.IntValue ENERGY_RECYCLER;
     public static final ModConfigSpec.ConfigValue<String> RECYCLER_INPUT;
+    public static final ModConfigSpec.ConfigValue<String> RECYCLER_PILE_INPUT;
+    public static final ModConfigSpec.IntValue RECYCLER_PILE_UNITS;
+    public static final ModConfigSpec.IntValue RECYCLER_BROKEN_SECONDS;
     public static final ModConfigSpec.DoubleValue RECYCLER_CHANCE;
     public static final ModConfigSpec.IntValue RECYCLER_SECONDS;
     public static final ModConfigSpec.IntValue RECYCLER_FAIL_MIN;
@@ -218,6 +223,10 @@ public final class BunkerConfig {
                 .defineInRange("maxPerPlayer", 1, 1, 100);
         BUNKER_HIGHLIGHT_SECONDS = b.comment("[доп.] Сколько секунд держится подсветка границ.")
                 .defineInRange("highlightSeconds", 60, 5, 600);
+        SAFE_ZONE_DEFAULT_RADIUS = b.comment("Блок безопасной зоны: полуразмер новой зоны по каждой оси.")
+                .defineInRange("safeZoneDefaultRadius", 16, 0, 4096);
+        SAFE_ZONE_MAX_RADIUS = b.comment("Блок безопасной зоны: наибольший полуразмер по оси.")
+                .defineInRange("safeZoneMaxRadius", 512, 1, 30000000);
         b.push("core");
         BUNKER_CORE_MAX_Y = b.comment("Ядро активируется только на этой высоте и ниже.")
                 .defineInRange("maxY", 30, -64, 320);
@@ -351,14 +360,19 @@ public final class BunkerConfig {
         AIR_RESTORE_PER_MIN = b.comment("Работающая ФВУ: +% воздуха в минуту.").defineInRange("airRestorePerMinute", 5.0, 0.0, 100.0);
         AIR_DRAIN_PER_PLAYER_MIN = b.comment("Без ФВУ: −% воздуха в минуту за каждого игрока в зоне.").defineInRange("airDrainPerPlayerMinute", 2.0, 0.0, 100.0);
         WATER_PURIFY_SECONDS = b.comment("Очистка 1000 mB, секунд.").defineInRange("purifySeconds", 30, 1, 3600);
-        WATER_BOTTLE_ITEM = b.comment("Что получает игрок, набирая пустой бутылкой чистую воду (250 mB). Жажда — отдельным модом:",
-                        "укажите здесь его «чистую» бутылку. minecraft:potion — обычная бутылка воды.")
-                .define("bottleItem", "bunker:clean_water_bottle");
+        WATER_BOTTLE_ITEM = b.comment("Что получает игрок, набирая пустой бутылкой чистую воду (250 mB).",
+                        "По умолчанию «Очищенная вода» Wastelands; minecraft:potion — обычная бутылка воды.")
+                .define("bottleItem", "wastelands:purified_water");
         b.pop();
 
         b.push("recycler");
         RECYCLER_INPUT = b.comment("Что перерабатывает станция очистки металла (металлолом Wastelands).")
                 .define("input", "wastelands:scrap_metal");
+        RECYCLER_PILE_INPUT = b.comment("«Куча металлолома» Wastelands: перерабатывается как pileUnits штук металлолома.")
+                .define("pileInput", "wastelands:scrap_pile");
+        RECYCLER_PILE_UNITS = b.defineInRange("pileUnits", 6, 1, 64);
+        RECYCLER_BROKEN_SECONDS = b.comment("Сломанный бункерный металл → бункерный металл, секунд на блок.")
+                .defineInRange("brokenMetalSeconds", 3, 1, 3600);
         RECYCLER_CHANCE = b.comment("Шанс получить незеритовый обломок с одного металлолома.").defineInRange("successChance", 0.03, 0.0, 1.0);
         RECYCLER_SECONDS = b.comment("Секунд на один металлолом.").defineInRange("seconds", 10, 1, 3600);
         RECYCLER_FAIL_MIN = b.comment("Неудача: железных самородков от…").defineInRange("failNuggetsMin", 1, 0, 64);

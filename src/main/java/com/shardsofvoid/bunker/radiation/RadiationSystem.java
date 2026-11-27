@@ -151,6 +151,10 @@ public final class RadiationSystem {
         double env = BunkerConfig.RADIATION_BASE_RATE.get()
                 * RadiationMath.depthMultiplier(player.getBlockY())
                 * weatherMultiplier(player);
+        if (com.shardsofvoid.bunker.safezone.SafeZoneData.isSafe(level, BlockPos.containing(player.getX(), player.getEyeY(), player.getZ()))) {
+            // админская безопасная зона: радиации нет
+            return new Exposure(0, env, RadiationSource.SAFE_ZONE, zone);
+        }
         if (zone != null && zone.protectedHere()) {
             // bunkerMult = 0: защита бункера и костюма не суммируются
             return new Exposure(0, env, RadiationSource.BUNKER, zone);

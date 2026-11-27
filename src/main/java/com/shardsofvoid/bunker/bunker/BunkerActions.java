@@ -177,6 +177,11 @@ public final class BunkerActions {
     // ================================================================ действия
 
     public static void handle(ServerPlayer player, BunkerActionPayload payload) {
+        if (com.shardsofvoid.bunker.safezone.SafeZones.isZoneBlock(player.serverLevel(), payload.pos())) {
+            if (rateLimited(player)) return;
+            com.shardsofvoid.bunker.safezone.SafeZones.handle(player, payload);
+            return;
+        }
         if (BunkerPlanner.isPlanner(player.serverLevel(), payload.pos())) {
             if (!payload.args().getString("a").equals("close") && rateLimited(player)) return;
             BunkerPlanner.handle(player, payload);

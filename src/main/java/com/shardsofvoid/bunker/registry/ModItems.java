@@ -80,9 +80,13 @@ public final class ModItems {
                             ResourceLocation.withDefaultNamespace("item/empty_slot_ingot"))));
 
     public static final DeferredItem<BlockItem> BUNKER_METAL = ITEMS.registerSimpleBlockItem("bunker_metal", ModBlocks.BUNKER_METAL);
+    public static final DeferredItem<BlockItem> BROKEN_BUNKER_METAL = ITEMS.registerSimpleBlockItem("broken_bunker_metal", ModBlocks.BROKEN_BUNKER_METAL);
 
     public static final DeferredItem<BunkerCoreItem> BUNKER_CORE = ITEMS.registerItem("bunker_core",
             p -> new BunkerCoreItem(ModBlocks.BUNKER_CORE.get(), p.stacksTo(1).rarity(Rarity.RARE).fireResistant()));
+
+    public static final DeferredItem<com.shardsofvoid.bunker.safezone.SafeZoneItem> SAFE_ZONE = ITEMS.registerItem("safe_zone",
+            p -> new com.shardsofvoid.bunker.safezone.SafeZoneItem(ModBlocks.SAFE_ZONE.get(), p.rarity(Rarity.EPIC)));
 
     public static final DeferredItem<BunkerRoomItem> BUNKER_ROOM_BLOCK = ITEMS.registerItem("bunker_room_block",
             p -> new BunkerRoomItem(ModBlocks.BUNKER_ROOM.get(), p.stacksTo(16).rarity(Rarity.UNCOMMON)));
@@ -92,6 +96,8 @@ public final class ModItems {
             .icon(() -> new ItemStack(BUNKER_CORE.get()))
             .displayItems((params, out) -> {
                 out.accept(BUNKER_METAL.get());
+                out.accept(BROKEN_BUNKER_METAL.get());
+                out.accept(SAFE_ZONE.get());
                 out.accept(BUNKER_CORE.get());
                 out.accept(BUNKER_ROOM_BLOCK.get());
                 for (DeferredItem<RadSuitItem> part : List.of(RADSUIT_HELMET, RADSUIT_CHESTPLATE, RADSUIT_LEGGINGS, RADSUIT_BOOTS)) {

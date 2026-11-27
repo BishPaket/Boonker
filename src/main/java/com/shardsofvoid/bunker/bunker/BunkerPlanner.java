@@ -69,6 +69,10 @@ public final class BunkerPlanner {
         int sx = 3, sy = 3, sz = 3;
         int du, dv;
         boolean sideView;
+        /** 0 — новая комната, 1 — список комнат (улучшение и перестройка). */
+        int mode;
+        int selected;
+        @Nullable int[] edit;
         @Nullable Component message;
         boolean messageOk;
 
@@ -185,10 +189,50 @@ public final class BunkerPlanner {
             case "select" -> {
                 int i = args.getInt("index");
                 if (i >= 0 && i < areas.size()) {
-                    v.target = i;
-                    v.du = v.dv = 0;
+                    if (v.mode == 1) {
+                        if (v.selected != i) v.edit = null;
+                        v.selected = i;
+                    } else {
+                        v.target = i;
+                        v.du = v.dv = 0;
+                    }
                 }
             }
+            case "mode" -> {
+                v.mode = v.mode == 0 ? 1 : 0;
+                v.edit = null;
+            }
+            case "pick" -> {
+                int step = args.getInt("step") >= 0 ? 1 : -1;
+                v.selected = Math.floorMod(v.selected + step, Math.max(1, areas.size()));
+                v.edit = null;
+            }
+            case "wall" -> {
+                Area a = selectedArea(b, v);
+                int dir = args.getInt("dir");
+                if (a == null || dir < 0 || dir >= 6) return;
+                Area d = a.copy();
+                if (v.edit != null) d.setBounds(v.edit);
+                d.moveWall(Direction.from3DDataValue(dir), args.getInt("delta") >= 0 ? 1 : -1);
+                v.edit = java.util.Arrays.equals(d.bounds(), a.bounds()) ? null : d.bounds();
+                m.sendPreview(player, b, List.of(d));
+            }
+            case "reset" -> {
+                v.edit = null;
+                m.sendHighlight(player, b, false);
+            }
+            case "rebuild" -> rebuild(player, m, b, v);
+            case "show" -> {
+                Area a = selectedArea(b, v);
+                if (a != null && v.edit != null) {
+                    Area d = a.copy();
+                    d.setBounds(v.edit);
+                    m.sendPreview(player, b, List.of(d));
+                } else {
+                    m.sendHighlight(player, b, true);
+                }
+            }
+            case "upgrade" -> upgradeArea(player, m, b, v);
             case "side" -> {
                 int step = args.getInt("step") >= 0 ? 1 : -1;
                 v.side = Math.floorMod(v.side + step, SIDES.length);
@@ -217,7 +261,7 @@ public final class BunkerPlanner {
                 return;
             }
         }
-        if (!action.equals("build") && !action.equals("view")) {
+        if (v.mode == 0 && !action.equals("build") && !action.equals("view") && !action.equals("mode")) {
             Area draft = draft(b, v);
             if (draft != null) m.sendPreview(player, b, List.of(draft));
         }
@@ -322,8 +366,22 @@ public final class BunkerPlanner {
     private static Plan plan(ServerLevel level, Bunker b, Area d, @Nullable Area target) {
         List<Area> all = new ArrayList<>(b.areas());
         all.add(d);
+        return planCells(level, all, d, null, doorway(b, d, target));
+    }
+
+    /** План перестройки существующей области под новые границы: старый внутренний объём не трогается. */
+    private static Plan rebuildPlan(ServerLevel level, Bunker b, Area old, Area next) {
+        List<Area> all = new ArrayList<>(b.areas());
+        all.replaceAll(a -> a == old ? next : a);
+        return planCells(level, all, next, old, new LongOpenHashSet());
+    }
+
+    /**
+     * Что сделать в клетках области d: недостающая оболочка — металл, внутренний объём — выкопать.
+     * old — прежние границы перестраиваемой области: её внутренний объём (вещи игроков) остаётся как есть.
+     */
+    private static Plan planCells(ServerLevel level, List<Area> all, Area d, @Nullable Area old, LongOpenHashSet doorKeys) {
         LongLinkedOpenHashSet expected = BunkerGeometry.expectedShell(all);
-        LongOpenHashSet doorKeys = doorway(b, d, target);
         List<BlockPos> shell = new ArrayList<>();
         List<BlockPos> dig = new ArrayList<>();
         List<BlockPos> door = new ArrayList<>();
@@ -341,7 +399,7 @@ public final class BunkerPlanner {
                     BlockState s = level.getBlockState(p);
                     if (doorKeys.contains(key)) continue;
                     if (d.isInterior(x, y, z)) {
-                        if (s.isAir()) continue;
+                        if (s.isAir() || (old != null && old.isInterior(x, y, z))) continue;
                         error = breakError(level, p, s, false);
                         dig.add(p);
                     } else if (expected.contains(key)) {
@@ -534,6 +592,167 @@ public final class BunkerPlanner {
         v.du = v.dv = 0;
     }
 
+    // ================================================================ комнаты: перестройка и улучшение
+
+    @Nullable
+    private static Area selectedArea(Bunker b, View v) {
+        List<Area> areas = b.areas();
+        if (areas.isEmpty()) return null;
+        v.selected = Math.floorMod(v.selected, areas.size());
+        return areas.get(v.selected);
+    }
+
+    /** Вскопать, поставить, собрать добытое. Возвращает добытые стеки (ещё не розданные). */
+    private static List<ItemStack> execute(ServerPlayer player, ServerLevel level, Plan plan) {
+        ItemStack tool = new ItemStack(Items.NETHERITE_PICKAXE);
+        List<ItemStack> drops = new ArrayList<>();
+        BlockState metal = ModBlocks.BUNKER_METAL.get().defaultBlockState();
+        for (BlockPos p : plan.shell()) {
+            BlockState s = level.getBlockState(p);
+            if (!s.isAir()) drops.addAll(Block.getDrops(s, level, p, null, player, tool));
+            level.setBlock(p, metal, Block.UPDATE_ALL);
+        }
+        for (BlockPos p : plan.dig()) {
+            BlockState s = level.getBlockState(p);
+            drops.addAll(Block.getDrops(s, level, p, null, player, tool));
+            level.setBlock(p, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        }
+        for (BlockPos p : plan.door()) {
+            BlockState s = level.getBlockState(p);
+            drops.addAll(Block.getDrops(s, level, p, null, player, tool));
+            level.setBlock(p, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        }
+        return drops;
+    }
+
+    /** Новые границы выбранной области + достройка: новые стены из металла, новый объём выкапывается. */
+    private static void rebuild(ServerPlayer player, BunkerManager m, Bunker b, View v) {
+        ServerLevel level = player.serverLevel();
+        Area a = selectedArea(b, v);
+        if (a == null || v.edit == null) return;
+        Component error = m.checkBounds(b, a, v.edit);
+        Area next = a.copy();
+        next.setBounds(v.edit);
+        Plan plan = error == null ? rebuildPlan(level, b, a, next) : null;
+        if (error == null && plan.error() != null) error = plan.error();
+        if (error == null && !BunkerStorage.take(player, level, b, metalTest(), plan.metal(), null)) {
+            error = Component.translatable("message.bunker.planner.no_metal", plan.metal(), BunkerStorage.count(player, level, b, metalTest()));
+        }
+        if (error == null) {
+            error = m.applyBounds(b, a, v.edit);
+            if (error != null && !player.hasInfiniteMaterials() && plan.metal() > 0) {
+                BunkerStorage.give(player, level, b, new ItemStack(ModItems.BUNKER_METAL.get(), plan.metal()), v.pos);
+            }
+        }
+        if (error != null) {
+            v.message = error;
+            v.messageOk = false;
+            return;
+        }
+        List<ItemStack> drops = execute(player, level, plan);
+        BunkerStorage.giveAll(player, level, b, mergeStacks(drops), v.pos, BunkerStorage.handlers(level, b));
+        level.playSound(null, v.pos, SoundEvents.ANVIL_USE, SoundSource.BLOCKS, 0.8F, 1.2F);
+        m.validateNow(b);
+        m.sendHighlight(player, b, false);
+        v.message = Component.translatable("message.bunker.planner.rebuilt", EnergySystem.roomName(b, a), a.sizeText(), plan.metal(),
+                plan.dig().size());
+        v.messageOk = true;
+        v.edit = null;
+    }
+
+    private static int levelOfArea(Bunker b, Area a) {
+        return a == b.coreArea ? b.level : a.level;
+    }
+
+    private static List<BunkerUpgrades.Cost> upgradeCost(Bunker b, Area a) {
+        int next = levelOfArea(b, a) + 1;
+        return (a == b.coreArea ? BunkerUpgrades.core(next) : BunkerUpgrades.room(next)).cost();
+    }
+
+    @Nullable
+    private static Component upgradeBlocker(ServerPlayer player, Bunker b, Area a) {
+        if (levelOfArea(b, a) >= 3) return Component.translatable("gui.bunker.upgrade.max");
+        if (BunkerConfig.UPGRADE_REQUIRES_ACTIVE.get() && b.state != Bunker.State.ACTIVE) {
+            return Component.translatable("gui.bunker.upgrade.need_active");
+        }
+        if (!BunkerActions.canPay(player, b, upgradeCost(b, a))) return Component.translatable("gui.bunker.upgrade.not_enough");
+        return null;
+    }
+
+    private static void upgradeArea(ServerPlayer player, BunkerManager m, Bunker b, View v) {
+        Area a = selectedArea(b, v);
+        if (a == null) return;
+        Component blocker = upgradeBlocker(player, b, a);
+        if (blocker == null && !BunkerActions.pay(player, b, upgradeCost(b, a))) blocker = Component.translatable("gui.bunker.upgrade.not_enough");
+        if (blocker != null) {
+            v.message = blocker;
+            v.messageOk = false;
+            return;
+        }
+        int next = levelOfArea(b, a) + 1;
+        if (a == b.coreArea) m.setCoreLevel(b, next);
+        else m.setRoomLevel(b, a.anchor, next);
+        player.serverLevel().playSound(null, v.pos, SoundEvents.SMITHING_TABLE_USE, SoundSource.BLOCKS, 1.0F, 1.0F);
+        v.message = Component.translatable("message.bunker.planner.upgraded", EnergySystem.roomName(b, a),
+                com.shardsofvoid.bunker.radiation.RadiationSystem.roman(next));
+        v.messageOk = true;
+    }
+
+    private static void writeRooms(CompoundTag d, ServerPlayer player, BunkerManager m, Bunker b, View v, HolderLookup.Provider reg) {
+        Area a = selectedArea(b, v);
+        if (a == null) return;
+        ServerLevel level = player.serverLevel();
+        d.putInt("selected", v.selected);
+        d.putString("selName", BunkerActions.json(EnergySystem.roomName(b, a), reg));
+        d.putInt("selLevel", levelOfArea(b, a));
+        d.putString("selSize", a.sizeText());
+        d.putInt("selFe", EnergySystem.areaCost(a));
+        d.putInt("budget", BunkerManager.expansionBudget(b, a));
+        List<Area> others = new ArrayList<>(b.areas());
+        others.remove(a);
+        byte[] shared = new byte[6];
+        for (Direction dir : Direction.values()) shared[dir.get3DDataValue()] = (byte) (BunkerGeometry.isSharedWall(a, dir, others) ? 1 : 0);
+        d.putByteArray("shared", shared);
+        Component error = null;
+        if (v.edit != null) {
+            Area next = a.copy();
+            next.setBounds(v.edit);
+            d.putIntArray("edit", v.edit);
+            d.putString("editSize", next.sizeText());
+            d.putInt("editFe", EnergySystem.areaCost(next));
+            d.putInt("used", next.expansionUsed());
+            error = m.checkBounds(b, a, v.edit);
+            if (error == null) {
+                Plan plan = rebuildPlan(level, b, a, next);
+                d.putInt("metal", plan.metal());
+                d.putInt("dig", plan.dig().size());
+                d.putInt("metalHave", player.hasInfiniteMaterials() ? plan.metal() : BunkerStorage.count(player, level, b, metalTest()));
+                if (plan.error() != null) error = plan.error();
+            }
+        } else {
+            d.putInt("used", a.expansionUsed());
+        }
+        if (error != null) d.putString("error", BunkerActions.json(error, reg));
+        // улучшение
+        if (levelOfArea(b, a) < 3) {
+            StringBuilder cost = new StringBuilder();
+            Component costText = Component.empty();
+            for (BunkerUpgrades.Cost c : upgradeCost(b, a)) {
+                int have = player.hasInfiniteMaterials() ? c.count() : BunkerStorage.count(player, level, b, c::test);
+                costText = Component.empty().append(costText).append(cost.isEmpty() ? "" : ", ")
+                        .append(Component.literal(c.count() + "× ")).append(c.displayStack().getHoverName())
+                        .append(Component.literal(" (" + have + ")"));
+                cost.append('x');
+            }
+            Component blocker = upgradeBlocker(player, b, a);
+            d.putBoolean("canUpgrade", blocker == null);
+            Component info = Component.translatable("gui.bunker.planner.upgrade_cost",
+                    com.shardsofvoid.bunker.radiation.RadiationSystem.roman(levelOfArea(b, a) + 1), costText);
+            if (blocker != null) info = Component.empty().append(blocker).append(" · ").append(info);
+            d.putString("upgradeInfo", BunkerActions.json(info, reg));
+        }
+    }
+
     private static List<ItemStack> mergeStacks(List<ItemStack> in) {
         List<ItemStack> out = new ArrayList<>();
         for (ItemStack s : in) {
@@ -584,10 +803,21 @@ public final class BunkerPlanner {
         d.putIntArray("size", new int[] {v.sx, v.sy, v.sz});
         d.putIntArray("offset", new int[] {v.du, v.dv});
         d.putBoolean("sideView", v.sideView);
+
         d.putInt("maxH", BunkerManager.maxHorizontal(b));
         d.putInt("maxV", BunkerManager.maxVertical(b));
         d.putInt("rooms", b.rooms.size());
         d.putInt("roomLimit", BunkerUpgrades.maxRooms(b.level));
+        d.putInt("mode", v.mode);
+        if (v.mode == 1) {
+            writeRooms(d, player, m, b, v, reg);
+            if (v.message != null) {
+                d.putString("msg", BunkerActions.json(v.message, reg));
+                d.putBoolean("msgOk", v.messageOk);
+            }
+            PacketDistributor.sendToPlayer(player, new BunkerScreenPayload(v.pos, false, open, 0, d));
+            return;
+        }
 
         Area draft = draft(b, v);
         Component error = draft == null ? Component.translatable("message.bunker.planner.no_draft") : geometryError(m, b, draft);

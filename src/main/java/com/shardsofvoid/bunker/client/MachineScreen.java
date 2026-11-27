@@ -122,8 +122,10 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 g.drawString(font, Component.translatable("gui.bunker.station.material"), 82, 66, 0xFF404040, false);
             }
             case METAL_RECYCLER -> {
-                g.drawString(font, Component.translatable("gui.bunker.recycler.hint"), 8, 60, 0xFF404040, false);
-                g.drawString(font, Component.translatable("gui.bunker.machine.use", Math.abs(rate)), 8, 70, 0xFF404040, false);
+                Component in = Component.translatable("gui.bunker.recycler.input");
+                g.drawString(font, in, 52 - font.width(in) / 2, 24, 0xFF404040, false);
+                g.drawString(font, Component.translatable("gui.bunker.recycler.output"), 116, 15, 0xFF404040, false);
+                g.drawString(font, Component.translatable("gui.bunker.machine.use", Math.abs(rate)), 8, 62, 0xFF404040, false);
             }
             case AIR_FILTER_UNIT -> {
                 g.drawString(font, Component.translatable("gui.bunker.machine.filter", menu.value(2), menu.value(3)), 70, 28, 0xFF404040, false);

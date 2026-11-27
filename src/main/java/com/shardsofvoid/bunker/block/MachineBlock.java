@@ -184,7 +184,7 @@ public class MachineBlock extends BaseEntityBlock {
         return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
     }
 
-    /** Бутылка чистой воды: предмет из конфига water.bottleItem (мод жажды), по умолчанию bunker:clean_water_bottle. */
+    /** Бутылка чистой воды: предмет из конфига water.bottleItem, по умолчанию «Очищенная вода» Wastelands; нет его — обычная вода. */
     private static ItemStack cleanBottle() {
         String id = com.shardsofvoid.bunker.config.BunkerConfig.WATER_BOTTLE_ITEM.get();
         net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation.tryParse(id);
@@ -195,7 +195,7 @@ public class MachineBlock extends BaseEntityBlock {
             var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(rl);
             if (item.isPresent() && item.get() != Items.AIR) return new ItemStack(item.get());
         }
-        return new ItemStack(com.shardsofvoid.bunker.registry.ModMachines.CLEAN_WATER_BOTTLE.get());
+        return PotionContents.createItemStack(Items.POTION, Potions.WATER);
     }
 
     @Override

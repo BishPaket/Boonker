@@ -58,6 +58,7 @@ public final class RadiationHud {
         ItemStack icon = switch (ClientState.source) {
             case SUIT -> suitIcon();
             case BUNKER -> bunkerIcon();
+            case SAFE_ZONE -> new ItemStack(ModItems.SAFE_ZONE.get());
             default -> ItemStack.EMPTY;
         };
         int textX = x + 3;

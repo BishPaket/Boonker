@@ -27,6 +27,18 @@ public final class ClientState {
     public static List<BlockPos> missing = List.of();
     public static List<BlockPos> allowed = List.of();
     public static long highlightUntil;
+    /** Игрок скрыл контур: новые подсветки игнорируются до «Показать границы». */
+    public static boolean highlightMuted;
+
+    public static boolean highlightVisible() {
+        return highlightUntil > 0 && !highlightMuted;
+    }
+
+    public static void hideHighlight() {
+        highlightMuted = true;
+        highlightUntil = 0;
+        highlightMuted = false;
+    }
 
     private ClientState() {}
 

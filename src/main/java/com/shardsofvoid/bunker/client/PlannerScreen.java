@@ -100,6 +100,18 @@ public class PlannerScreen extends Screen {
         return data.getBoolean("sideView");
     }
 
+    private boolean roomsMode() {
+        return data.getInt("mode") == 1;
+    }
+
+    private int[] draftBounds() {
+        return data.getIntArray(roomsMode() ? "edit" : "draft");
+    }
+
+    private int highlighted() {
+        return data.getInt(roomsMode() ? "selected" : "target");
+    }
+
     // ---------------------------------------------------------------- разметка
 
     @Override
@@ -112,6 +124,13 @@ public class PlannerScreen extends Screen {
         int y = top + 26;
 
         addRenderableWidget(Button.builder(Component.literal("✕"), b -> onClose()).bounds(left + W - 20, top + 4, 16, 16).build());
+        Button modeButton = Button.builder(Component.translatable(roomsMode() ? "gui.bunker.planner.mode_new" : "gui.bunker.planner.mode_rooms"),
+                b -> send("mode")).bounds(left + 150, top + 4, 96, 16).build();
+        addRenderableWidget(modeButton);
+        if (roomsMode()) {
+            initRooms(px, y);
+            return;
+        }
 
         addRenderableWidget(Button.builder(Component.literal("◀"), b -> sendStep("target", "step", -1)).bounds(px, y + 10, 14, 14).build());
         addRenderableWidget(Button.builder(Component.literal("▶"), b -> sendStep("target", "step", 1)).bounds(px + 136, y + 10, 14, 14).build());
@@ -153,13 +172,120 @@ public class PlannerScreen extends Screen {
         int by = top + H - 24;
         addRenderableWidget(Button.builder(Component.translatable(sideView() ? "gui.bunker.planner.view_top" : "gui.bunker.planner.view_side"),
                 b -> send("view")).bounds(left + 8, by, 98, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("gui.bunker.planner.preview"), b -> send("preview"))
-                .bounds(left + 110, by, 98, 20).build());
+        previewButton = addRenderableWidget(Button.builder(previewLabel(), b -> {
+            if (ClientState.highlightVisible()) {
+                ClientState.hideHighlight();
+            } else {
+                ClientState.highlightMuted = false;
+                send("preview");
+            }
+        }).bounds(left + 110, by, 98, 20).build());
         Button build = Button.builder(Component.translatable("gui.bunker.planner.build").withStyle(ChatFormatting.BOLD), b -> send("build"))
                 .bounds(px, by, 150, 20).build();
         build.active = !data.contains("error") && data.contains("draft");
         if (data.contains("error")) build.setTooltip(Tooltip.create(parse(data.getString("error"))));
         addRenderableWidget(build);
+    }
+
+    private Button previewButton;
+
+    private static Component previewLabel() {
+        return Component.translatable(ClientState.highlightVisible() ? "gui.bunker.button.hide_bounds" : "gui.bunker.planner.preview");
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (previewButton != null) previewButton.setMessage(previewLabel());
+    }
+
+    private static final String[] WALL_KEYS = {"down", "up", "north", "south", "west", "east"};
+
+    /** Режим «Комнаты»: выбор области, стены ± и «Перестроить», «Улучшить». */
+    private void initRooms(int px, int y) {
+        addRenderableWidget(Button.builder(Component.literal("◀"), b -> sendStep("pick", "step", -1)).bounds(px, y + 10, 14, 14).build());
+        addRenderableWidget(Button.builder(Component.literal("▶"), b -> sendStep("pick", "step", 1)).bounds(px + 136, y + 10, 14, 14).build());
+        y += 40;
+        byte[] shared = data.getByteArray("shared");
+        for (int d = 0; d < 6; d++) {
+            int dir = d;
+            int cx = px + (d % 2) * 76;
+            int cy = y + (d / 2) * 16;
+            Button minus = Button.builder(Component.literal("−"), b -> wall(dir, -1)).bounds(cx + 34, cy, 18, 14).build();
+            Button plus = Button.builder(Component.literal("+"), b -> wall(dir, 1)).bounds(cx + 54, cy, 18, 14).build();
+            if (dir < shared.length && shared[dir] != 0) {
+                minus.active = false;
+                plus.active = false;
+                Tooltip t = Tooltip.create(Component.translatable("gui.bunker.size.shared_wall"));
+                minus.setTooltip(t);
+                plus.setTooltip(t);
+            }
+            addRenderableWidget(minus);
+            addRenderableWidget(plus);
+        }
+        y += 52;
+        Button upgrade = Button.builder(Component.translatable("gui.bunker.button.upgrade"), b -> send("upgrade")).bounds(px, y, 72, 16).build();
+        upgrade.active = data.getBoolean("canUpgrade");
+        upgrade.setTooltip(Tooltip.create(data.contains("upgradeInfo") ? parse(data.getString("upgradeInfo"))
+                : Component.translatable("gui.bunker.upgrade.max")));
+        addRenderableWidget(upgrade);
+        Button reset = Button.builder(Component.translatable("gui.bunker.button.reset"), b -> send("reset")).bounds(px + 76, y, 74, 16).build();
+        reset.active = data.contains("edit");
+        addRenderableWidget(reset);
+
+        int by = top + H - 24;
+        addRenderableWidget(Button.builder(Component.translatable(sideView() ? "gui.bunker.planner.view_top" : "gui.bunker.planner.view_side"),
+                b -> send("view")).bounds(left + 8, by, 98, 20).build());
+        previewButton = addRenderableWidget(Button.builder(previewLabel(), b -> {
+            if (ClientState.highlightVisible()) {
+                ClientState.hideHighlight();
+            } else {
+                ClientState.highlightMuted = false;
+                send("show");
+            }
+        }).bounds(left + 110, by, 98, 20).build());
+        Button rebuild = Button.builder(Component.translatable("gui.bunker.planner.rebuild").withStyle(ChatFormatting.BOLD), b -> send("rebuild"))
+                .bounds(px, by, 150, 20).build();
+        rebuild.active = data.contains("edit") && !data.contains("error");
+        if (data.contains("error")) rebuild.setTooltip(Tooltip.create(parse(data.getString("error"))));
+        addRenderableWidget(rebuild);
+    }
+
+    private void wall(int dir, int delta) {
+        CompoundTag t = new CompoundTag();
+        t.putInt("dir", dir);
+        t.putInt("delta", delta);
+        send("wall", t);
+    }
+
+    private void renderRoomsPanel(GuiGraphics g, int px, int y) {
+        g.drawString(font, Component.translatable("gui.bunker.planner.room"), px, y, 0xFFAAAAAA, false);
+        String name = font.plainSubstrByWidth(parse(data.getString("selName")).getString(), 116);
+        g.drawCenteredString(font, name, px + 75, y + 13, 0xFFFFD54A);
+        y += 28;
+        line(g, Component.translatable("gui.bunker.planner.room_info", com.shardsofvoid.bunker.radiation.RadiationSystem.roman(data.getInt("selLevel")),
+                data.getString("selSize"), data.getInt("selFe")), px, y, 0xFFCCCCCC);
+        y += 12;
+        for (int d = 0; d < 6; d++) {
+            int cx = px + (d % 2) * 76;
+            int cy = y + (d / 2) * 16;
+            g.drawString(font, Component.translatable("gui.bunker.planner.wall." + WALL_KEYS[d]), cx, cy + 3, 0xFFFFFFFF, false);
+        }
+        y += 52 + 20;
+        if (data.contains("edit")) {
+            line(g, Component.translatable("gui.bunker.planner.summary_new", data.getString("editSize"), data.getInt("editFe")), px, y, 0xFF8FD3FF);
+            y += 10;
+        }
+        boolean budgetOk = data.getInt("used") <= data.getInt("budget");
+        line(g, Component.translatable("gui.bunker.size.expansion", data.getInt("used"), data.getInt("budget")), px, y,
+                budgetOk ? 0xFF7CDB7C : 0xFFFF6B6B);
+        y += 10;
+        if (data.contains("metal")) {
+            int need = data.getInt("metal"), have = data.getInt("metalHave");
+            line(g, Component.translatable("gui.bunker.planner.metal", need, have), px, y, have >= need ? 0xFF7CDB7C : 0xFFFF6B6B);
+            y += 10;
+            line(g, Component.translatable("gui.bunker.planner.dig", data.getInt("dig")), px, y, 0xFFCCCCCC);
+        }
     }
 
     // ---------------------------------------------------------------- миникарта
@@ -173,7 +299,7 @@ public class PlannerScreen extends Screen {
         int minA = Integer.MAX_VALUE, minB = Integer.MAX_VALUE, maxA = Integer.MIN_VALUE, maxB = Integer.MIN_VALUE;
         ListTag areas = data.getList("areas", Tag.TAG_COMPOUND);
         for (int i = 0; i <= areas.size(); i++) {
-            int[] b = i < areas.size() ? areas.getCompound(i).getIntArray("b") : data.getIntArray("draft");
+            int[] b = i < areas.size() ? areas.getCompound(i).getIntArray("b") : draftBounds();
             if (b.length != 6) continue;
             int[] p = project(b);
             minA = Math.min(minA, p[0]);
@@ -246,7 +372,7 @@ public class PlannerScreen extends Screen {
             if (Math.floorMod(a, 4) == 0) g.fill(sx(a), mapY, sx(a) + 1, mapY + MAP_H, 0xFF1C242C);
         }
         ListTag areas = data.getList("areas", Tag.TAG_COMPOUND);
-        int target = data.getInt("target");
+        int target = highlighted();
         Component hover = null;
         for (int i = 0; i < areas.size(); i++) {
             CompoundTag c = areas.getCompound(i);
@@ -257,7 +383,7 @@ public class PlannerScreen extends Screen {
             if (i == target) outline(g, p[0], p[1], p[2], p[3], 0xFFFFD54A);
             if (inside(mouseX, mouseY, p)) hover = parse(c.getString("name"));
         }
-        int[] draft = data.getIntArray("draft");
+        int[] draft = draftBounds();
         if (draft.length == 6) {
             int[] p = project(draft);
             boolean ok = !data.contains("error");
@@ -329,6 +455,11 @@ public class PlannerScreen extends Screen {
 
         int px = left + 8 + MAP_W + 8;
         int y = top + 26;
+        if (roomsMode()) {
+            renderRoomsPanel(g, px, y);
+            renderMessage(g);
+            return;
+        }
         ListTag areas = data.getList("areas", Tag.TAG_COMPOUND);
         int target = data.getInt("target");
         g.drawString(font, Component.translatable("gui.bunker.planner.attach"), px, y, 0xFFAAAAAA, false);
@@ -371,6 +502,10 @@ public class PlannerScreen extends Screen {
                     : Component.translatable("gui.bunker.planner.room_item_none"), px, y, lvl > 0 ? 0xFF7CDB7C : 0xFFFF6B6B);
         }
 
+        renderMessage(g);
+    }
+
+    private void renderMessage(GuiGraphics g) {
         int my = top + H - 38; // две строки сообщения над кнопками
         if (data.contains("msg")) {
             wrap(g, parse(data.getString("msg")), left + 8, my - 10, W - 16, data.getBoolean("msgOk") ? 0xFF7CDB7C : 0xFFFF6B6B);

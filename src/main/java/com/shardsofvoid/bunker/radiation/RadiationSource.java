@@ -2,7 +2,7 @@ package com.shardsofvoid.bunker.radiation;
 
 /** Источник защиты для HUD. */
 public enum RadiationSource {
-    NONE, SUIT, BUNKER;
+    NONE, SUIT, BUNKER, SAFE_ZONE;
 
     private static final RadiationSource[] VALUES = values();
 
